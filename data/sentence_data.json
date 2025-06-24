@@ -1,0 +1,51 @@
+[
+  {
+    "chinese": "她習慣獨自生活",
+    "english": "She's used to living alone.",
+    "audio_filename": "m1.wav"
+  },
+  {
+    "chinese": "你從事什麼工作",
+    "english": "What's your job?",
+    "audio_filename": "m2.wav"
+  },
+  {
+    "chinese": "這裡沒有這個人",
+    "english": "There's no one here by that name.",
+    "audio_filename": "m3.wav"
+  },{
+    "chinese": "那裡沒有下雪",
+    "english": "There isn't any snow.",
+    "audio_filename": "m4.wav"
+  },
+  {
+    "chinese": "我們週末休息",
+    "english": "We're closed on weekends.",
+    "audio_filename": "m5.wav"
+  },
+  {
+    "chinese": "我不確定在哪裡",
+    "english": "I'm not sure where that is.",
+    "audio_filename": "f1.wav"
+  },
+  {
+    "chinese": "我通常七點前起來",
+    "english": "I often get up before seven.",
+    "audio_filename": "f2.wav"
+  },
+  {
+    "chinese": "她的小孩喝很多牛奶",
+    "english": "Her children drink a lot of milk.",
+    "audio_filename": "f3.wav"
+  },
+  {
+    "chinese": "他工作做得沒有很好",
+    "english": "He doesn't do his job very well.",
+    "audio_filename": "f4.wav"
+  },
+  {
+    "chinese": "我再回你電話",
+    "english": "I'm returning your call.",
+    "audio_filename": "f5.wav"
+  }
+]
