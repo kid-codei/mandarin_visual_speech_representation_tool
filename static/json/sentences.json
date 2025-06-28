@@ -1,0 +1,72 @@
+[
+  {
+    "chinese_traditional": "她習慣獨自生活",
+    "chinese_simplified": "她习惯独自生活",
+    "english": "She's used to living alone.",
+    "audio_filename": "m1.wav",
+    "pinyin": "ta1 xi2 guan4 du2 zi4 sheng1 huo2"
+  },
+  {
+    "chinese_traditional": "你從事什麼工作",
+    "chinese_simplified": "你从事什么工作",
+    "english": "What's your job?",
+    "audio_filename": "m2.wav",
+    "pinyin": "ni3 cong2 shi4 shen2 me gong1 zuo4"
+  },
+  {
+    "chinese_traditional": "這裡沒有這個人",
+    "chinese_simplified": "这里没有这个人",
+    "english": "There's no one here by that name.",
+    "audio_filename": "m3.wav",
+    "pinyin": "zhe4 li3 mei2 you3 zhe4 ge4 ren2"
+  },
+  {
+    "chinese_traditional": "那裡沒有下雪",
+    "chinese_simplified": "那里没有下雪",
+    "english": "There isn't any snow.",
+    "audio_filename": "m4.wav",
+    "pinyin": "na4 li3 mei2 you3 xia4 xue3"
+  },
+  {
+    "chinese_traditional": "我們週末休息",
+    "chinese_simplified": "我们周末休息",
+    "english": "We're closed on weekends.",
+    "audio_filename": "m5.wav",
+    "pinyin": "wo3 men zhou1 mo4 xiu1 xi1"
+  },
+  {
+    "chinese_traditional": "我不確定在哪裡",
+    "chinese_simplified": "我不确定在哪里",
+    "english": "I'm not sure where that is.",
+    "audio_filename": "f1.wav",
+    "pinyin": "wo3 bu4 que4 ding4 zai4 na3 li3"
+  },
+  {
+    "chinese_traditional": "我通常七點前起來",
+    "chinese_simplified": "我通常七点前起来",
+    "english": "I often get up before seven.",
+    "audio_filename": "f2.wav",
+    "pinyin": "wo3 tong1 chang2 qi1 dian3 qian2 qi3 lai2"
+  },
+  {
+    "chinese_traditional": "她的小孩喝很多牛奶",
+    "chinese_simplified": "她的小孩喝很多牛奶",
+    "english": "Her children drink a lot of milk.",
+    "audio_filename": "f3.wav",
+    "pinyin": "ta1 de xiao3 hai2 he1 hen3 duo1 niu2 nai3"
+  },
+  {
+    "chinese_traditional": "他工作做得沒有很好",
+    "chinese_simplified": "他工作做得没有很好",
+    "english": "He doesn't do his job very well.",
+    "audio_filename": "f4.wav",
+    "pinyin": "ta1 gong1 zuo4 zuo4 de2 mei2 you3 hen3 hao3"
+  },
+  {
+    "chinese_traditional": "我再回你電話",
+    "chinese_simplified": "我再回你电话",
+    "english": "I'm returning your call.",
+    "audio_filename": "f5.wav",
+    "pinyin": "wo3 zai4 hui2 ni3 dian4 hua4"
+  }
+]
