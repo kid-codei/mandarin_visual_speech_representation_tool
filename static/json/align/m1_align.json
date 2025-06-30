@@ -3,11 +3,71 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "2.920",
+   "end": "1.000",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "ta1 xi2 guan4 du2 zi4 sheng1 huo2"
+    "ta1"
+   ]
+  },
+  {
+   "begin": "1.000",
+   "children": [],
+   "end": "1.080",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "xi2"
+   ]
+  },
+  {
+   "begin": "1.080",
+   "children": [],
+   "end": "1.400",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "guan4"
+   ]
+  },
+  {
+   "begin": "1.400",
+   "children": [],
+   "end": "1.880",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "du2"
+   ]
+  },
+  {
+   "begin": "1.880",
+   "children": [],
+   "end": "2.120",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "zi4"
+   ]
+  },
+  {
+   "begin": "2.120",
+   "children": [],
+   "end": "2.880",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "sheng1"
+   ]
+  },
+  {
+   "begin": "2.880",
+   "children": [],
+   "end": "2.920",
+   "id": "f000007",
+   "language": "cmn",
+   "lines": [
+    "huo2"
    ]
   }
  ]

@@ -3,11 +3,61 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "2.600",
+   "end": "0.000",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "na4 li3 mei2 you3 xia4 xue3"
+    "na4"
+   ]
+  },
+  {
+   "begin": "0.000",
+   "children": [],
+   "end": "1.000",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "li3"
+   ]
+  },
+  {
+   "begin": "1.000",
+   "children": [],
+   "end": "1.400",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "mei2"
+   ]
+  },
+  {
+   "begin": "1.400",
+   "children": [],
+   "end": "1.760",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "you3"
+   ]
+  },
+  {
+   "begin": "1.760",
+   "children": [],
+   "end": "2.560",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "xia4"
+   ]
+  },
+  {
+   "begin": "2.560",
+   "children": [],
+   "end": "2.600",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "xue3"
    ]
   }
  ]

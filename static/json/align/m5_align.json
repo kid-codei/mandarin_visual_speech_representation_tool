@@ -3,11 +3,61 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "2.240",
+   "end": "0.760",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "wo3 men zhou1 mo4 xiu1 xi1"
+    "wo3"
+   ]
+  },
+  {
+   "begin": "0.760",
+   "children": [],
+   "end": "1.120",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "men"
+   ]
+  },
+  {
+   "begin": "1.120",
+   "children": [],
+   "end": "1.440",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "zhou1"
+   ]
+  },
+  {
+   "begin": "1.440",
+   "children": [],
+   "end": "1.800",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "mo4"
+   ]
+  },
+  {
+   "begin": "1.800",
+   "children": [],
+   "end": "2.200",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "xiu1"
+   ]
+  },
+  {
+   "begin": "2.200",
+   "children": [],
+   "end": "2.240",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "xi1"
    ]
   }
  ]

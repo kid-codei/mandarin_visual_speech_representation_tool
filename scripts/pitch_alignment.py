@@ -15,7 +15,8 @@ def run_alignment(audio_path, pinyin_text, output_json_path):
     grouped_lines = [' '.join(lines[i:i+lines_per_group]) for i in range(0, len(lines), lines_per_group)]
 
     with open("temp_pinyin.txt", "w", encoding="utf-8") as f:
-        f.write(pinyin_text)
+        for word in pinyin_text.strip().split():
+            f.write(word + "\n")
 
     config_string = u"task_language=cmn|os_task_file_format=json|is_text_type=plain"
     task = Task(config_string=config_string)

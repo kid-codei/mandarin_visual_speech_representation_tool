@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang=""en>
+<head>
+    <meta charset="UTF-8">
+    <title>Mandarin Visual Speech Representation Tool</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {font-family: sans-serif; padding: 20px; }
+        #pitch-plot { width: 100%; height: 400px; }
+        #text-alignment {margin-top: 20px; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <h1>Native Pitch Visualizer</h1>
+
+    <label for="fileSelector">Choose sentence:</label>
+    <select id="fileSelector"></select>
+
+    <br><br>
+    
+    <label for ="scriptChoice">Choose display:</label>
+    <select id="scriptChoice">
+        <option value="pinyin">Pinyin Only</option>
+        <option value="traditional">Traditional</option>
+        <option value="simplified">Simplified</option>
+        <option value="both_trad">Traditional + Pinyin</option>
+        <option value="both_simp">Simplified + Pinyin</option>
+    </select>
+
+    <div id="text-alignment" style="margin-bottom: 20px;"></div>
+    <div id="pitch-plot"></div>
+
+    <br><br>
+    
+    <button onclick="playAudio()">Play Audio</button>
+    <audio id="audioPlayer" controls style="display: none;"></audio>
+
+    <script>
+        let currentAudio = null;
+        let timeSeries = [];
+        let pitchSeries = [];
+
+        async function loadFileOptions() {
+            const response = await fetch("/api/available")
+            const fileIds = await response.json();
+            const selector = document.getElementById("fileSelector");
+
+            fileIds.forEach(id => {
+                const option = document.createElement("option");
+                option.value = id;
+                option.textContent = id;
+                selector.appendChild(option);
+            });
+
+            // set a file to autoload to begin with
+            if (fileIds.length > 0) {
+                selector.value = fileIds[0]
+                loadAndPlotFile(fileIds[0]);
+            }
+
+            selector.addEventListener("change", () => {
+                loadAndPlotFile(selector.value);
+            });
+        }
+
+        function createAlignedTextHTML(chars, pinyin) {
+            const charList = chars.split("");
+            const pinyinList = pinyin.split(" ");
+
+            let html = "<div style='display: flex; flex-wrap: wrap; gap: 10px;'>";
+
+            for (let i = 0; i < Math.min(charList.length, pinyinList.length); i++) {
+                html += `
+                    <div style="text-align: center;">
+                        <div>${charList[i]}</div>
+                        <div style="font-size: 0.9em; color: gray;">${pinyinList[i]}</div>
+                    </div>
+                `;
+            }
+
+            html += "</div>";
+            return html
+        }
+
+        async function loadAndPlotFile(filename) {
+          try {
+            const response = await fetch(`/api/pitch/${filename}`);
+            if (!response.ok) {
+                throw new Error(`Server returned status ${response.status}`)
+            }
+
+            const data = await response.json();
+            console.log("Loaded pitch data:", data);
+
+            timeSeries = [];
+            pitchSeries = [];
+            const words = [];
+            const annotations = [];
+            const shapes = [];
+            
+            if (data && data.alignment) {
+                data.alignment.forEach(fragment => {
+                    const start = fragment.start;
+                    const end = fragment.end;
+                    const pitchSegment = fragment.pitch_segment;
+
+                    if (!pitchSegment || pitchSegment.length === 0) return;
+
+                    const timeStep = (end - start) / pitchSegment.length;
+
+                    pitchSegment.forEach((pitch, i) => {
+                        timeSeries.push(start + i * timeStep);
+                        pitchSeries.push(pitch);
+                    });
+
+                    const midpoint = (start + end) / 2;
+                    annotations.push({
+                        x: midpoint, 
+                        y: Math.max(...pitchSeries) * 1.1,
+                        text: fragment.text,
+                        showarrow: false,
+                        font: { size: 16 },
+                        xanchor: 'center'
+                    });
+
+                    shapes.push(
+                    {
+                        type: 'line',
+                        x0: start,
+                        x1: start,
+                        y0: 0,
+                        y1: 1,
+                        xref: 'x',
+                        yref: 'paper',
+                        line: {
+                        color: 'red',
+                        width: 1,
+                        dash: 'dot'
+                        }
+                    },
+                    {
+                        type: 'line',
+                        x0: end,
+                        x1: end,
+                        y0: 0,
+                        y1: 1,
+                        xref: 'x',
+                        yref: 'paper',
+                        line: {
+                        color: 'red',
+                        width: 1,
+                        dash: 'dot'
+                        }
+                    }
+                    );
+
+
+                    words.push(fragment.text);
+                });
+
+                const trace = {
+                    x: timeSeries,
+                    y: pitchSeries,
+                    mode: 'lines',
+                    type: 'scatter',
+                    line: { shape: 'spline' },
+                    name: 'Native Pitch'
+                };
+
+                const markerTrace = {
+                    x: [0],
+                    y: [0],
+                    mode: 'markers',
+                    marker: { size: 10, color: 'blue' },
+                    name: 'Playback'
+                }
+
+                const layout = {
+                    title: `Pitch Contour: ${filename}`,
+                    xaxis: { title: 'Time (s)' },
+                    yaxis: {
+                        title: 'Pitch (Hz)',
+                        range: [0, Math.max(...pitchSeries) * 1.2]
+                    },
+                    annotations: annotations,
+                    shapes: shapes
+                };
+
+                Plotly.newPlot('pitch-plot', [trace, markerTrace], layout);
+
+                currentAudio = data.audio;
+
+                const scriptChoice = document.getElementById("scriptChoice").value;
+                const traditional = data.traditional;
+                const simplified = data.simplified;
+                const pinyin = data.pinyin;
+
+                let outputHTML = "";
+
+                if (scriptChoice === "pinyin") {
+                    outputHTML = `<div>${pinyin}</div>`;
+                } else if (scriptChoice === "traditional") {
+                    outputHTML = `<div>${traditional}</div>`;
+                } else if (scriptChoice === "simplified") {
+                    outputHTML = `<div>${simplified}</div>`;
+                } else if (scriptChoice === "both_trad") {
+                    outputHTML = createAlignedTextHTML(traditional, pinyin);
+                } else if (scriptChoice === "both_simp") {
+                    outputHTML = createAlignedTextHTML(simplified, pinyin);
+                }
+                
+                document.getElementById("text-alignment").innerHTML = outputHTML;
+            }
+        } catch (err) {
+          console.error("Failed to load or plot pitch:", err);
+          document.getElementById("text-alignment").textContent = `error loading pitch data for ${filename}`;
+        }
+        }
+
+        // run when page loads
+        loadFileOptions();
+
+        function playAudio() {
+            const audioElement = document.getElementById("audioPlayer");
+            if (!currentAudio) return;
+
+            audioElement.src = `/audio/${currentAudio}`;
+            audioElement.play();
+            audioElement.style.display = "block";
+
+            const updateDot = () => {
+                const time = audioElement.currentTime;
+                let closestIndex = 0;
+                let minDiff = Infinity;
+                for (let i = 0; i < timeSeries.length; i++) {
+                    const diff = Math.abs(timeSeries[i] - time);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestIndex = i;
+                    }
+                }
+
+                Plotly.restyle('pitch-plot', {
+                    x: [[timeSeries[closestIndex]]],
+                    y: [[pitchSeries[closestIndex]]]
+                }, [1]);
+
+                if (!audioElement.paused && !audioElement.ended) {
+                    requestAnimationFrame(updateDot);
+                }
+            };
+
+            requestAnimationFrame(updateDot);
+        }
+
+        document.getElementById("scriptChoice").addEventListener("change", () => {
+            loadAndPlotFile(document.getElementById("fileSelector").value);
+        })
+    </script>
+</body>
+</html>

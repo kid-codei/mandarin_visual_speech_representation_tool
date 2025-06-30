@@ -3,11 +3,91 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "4.320",
+   "end": "1.320",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "ta1 gong1 zuo4 zuo4 de2 mei2 you3 hen3 hao3"
+    "ta1"
+   ]
+  },
+  {
+   "begin": "1.320",
+   "children": [],
+   "end": "1.960",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "gong1"
+   ]
+  },
+  {
+   "begin": "1.960",
+   "children": [],
+   "end": "2.240",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "zuo4"
+   ]
+  },
+  {
+   "begin": "2.240",
+   "children": [],
+   "end": "2.440",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "zuo4"
+   ]
+  },
+  {
+   "begin": "2.440",
+   "children": [],
+   "end": "2.760",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "de2"
+   ]
+  },
+  {
+   "begin": "2.760",
+   "children": [],
+   "end": "3.120",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "mei2"
+   ]
+  },
+  {
+   "begin": "3.120",
+   "children": [],
+   "end": "4.280",
+   "id": "f000007",
+   "language": "cmn",
+   "lines": [
+    "you3"
+   ]
+  },
+  {
+   "begin": "4.280",
+   "children": [],
+   "end": "4.280",
+   "id": "f000008",
+   "language": "cmn",
+   "lines": [
+    "hen3"
+   ]
+  },
+  {
+   "begin": "4.280",
+   "children": [],
+   "end": "4.320",
+   "id": "f000009",
+   "language": "cmn",
+   "lines": [
+    "hao3"
    ]
   }
  ]

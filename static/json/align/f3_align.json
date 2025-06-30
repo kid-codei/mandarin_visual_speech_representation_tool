@@ -3,11 +3,91 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "4.280",
+   "end": "1.240",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "ta1 de xiao3 hai2 he1 hen3 duo1 niu2 nai3"
+    "ta1"
+   ]
+  },
+  {
+   "begin": "1.240",
+   "children": [],
+   "end": "1.680",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "de"
+   ]
+  },
+  {
+   "begin": "1.680",
+   "children": [],
+   "end": "2.080",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "xiao3"
+   ]
+  },
+  {
+   "begin": "2.080",
+   "children": [],
+   "end": "2.680",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "hai2"
+   ]
+  },
+  {
+   "begin": "2.680",
+   "children": [],
+   "end": "3.000",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "he1"
+   ]
+  },
+  {
+   "begin": "3.000",
+   "children": [],
+   "end": "3.480",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "hen3"
+   ]
+  },
+  {
+   "begin": "3.480",
+   "children": [],
+   "end": "4.240",
+   "id": "f000007",
+   "language": "cmn",
+   "lines": [
+    "duo1"
+   ]
+  },
+  {
+   "begin": "4.240",
+   "children": [],
+   "end": "4.240",
+   "id": "f000008",
+   "language": "cmn",
+   "lines": [
+    "niu2"
+   ]
+  },
+  {
+   "begin": "4.240",
+   "children": [],
+   "end": "4.280",
+   "id": "f000009",
+   "language": "cmn",
+   "lines": [
+    "nai3"
    ]
   }
  ]

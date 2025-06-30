@@ -3,11 +3,81 @@
   {
    "begin": "0.000",
    "children": [],
-   "end": "3.600",
+   "end": "0.960",
    "id": "f000001",
    "language": "cmn",
    "lines": [
-    "wo3 tong1 chang2 qi1 dian3 qian2 qi3 lai2"
+    "wo3"
+   ]
+  },
+  {
+   "begin": "0.960",
+   "children": [],
+   "end": "1.520",
+   "id": "f000002",
+   "language": "cmn",
+   "lines": [
+    "tong1"
+   ]
+  },
+  {
+   "begin": "1.520",
+   "children": [],
+   "end": "1.840",
+   "id": "f000003",
+   "language": "cmn",
+   "lines": [
+    "chang2"
+   ]
+  },
+  {
+   "begin": "1.840",
+   "children": [],
+   "end": "2.160",
+   "id": "f000004",
+   "language": "cmn",
+   "lines": [
+    "qi1"
+   ]
+  },
+  {
+   "begin": "2.160",
+   "children": [],
+   "end": "2.560",
+   "id": "f000005",
+   "language": "cmn",
+   "lines": [
+    "dian3"
+   ]
+  },
+  {
+   "begin": "2.560",
+   "children": [],
+   "end": "3.560",
+   "id": "f000006",
+   "language": "cmn",
+   "lines": [
+    "qian2"
+   ]
+  },
+  {
+   "begin": "3.560",
+   "children": [],
+   "end": "3.560",
+   "id": "f000007",
+   "language": "cmn",
+   "lines": [
+    "qi3"
+   ]
+  },
+  {
+   "begin": "3.560",
+   "children": [],
+   "end": "3.600",
+   "id": "f000008",
+   "language": "cmn",
+   "lines": [
+    "lai2"
    ]
   }
  ]
