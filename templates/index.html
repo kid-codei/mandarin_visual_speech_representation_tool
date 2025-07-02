@@ -35,10 +35,18 @@
     <button onclick="playAudio()">Play Audio</button>
     <audio id="audioPlayer" controls style="display: none;"></audio>
 
+    <h3>Record Your Pronounciation</h3>
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    <button id="uploadBtn" disabled>Upload Recording</button>
+    <audio id="recordedPlayer" controls style="display:none;"></audio>
+
     <script>
         let currentAudio = null;
         let timeSeries = [];
         let pitchSeries = [];
+        let learnerPitchesThisSession = new Set();
+        
 
         async function loadFileOptions() {
             const response = await fetch("/api/available")
@@ -60,6 +68,18 @@
 
             selector.addEventListener("change", () => {
                 loadAndPlotFile(selector.value);
+
+                // reset the leraner audio button
+                recordedPlayer.src = "";
+                recordedPlayer.style.display = "none";
+                uploadBtn.disabled = true;
+
+                // clear pitch plot
+                Plotly.react("pitch-plot", [], {
+                    title: "Pitch Contour: (reloading...)",
+                    xaxis: { title: "Time (s)" },
+                    yaxis: { title: "Pitch (Hz)", range: [0, 400] }  // placeholder
+                });
             });
         }
 
@@ -188,6 +208,41 @@
 
                 Plotly.newPlot('pitch-plot', [trace, markerTrace], layout);
 
+                // learner pitch plot
+                const allTraces = [trace, markerTrace];  // native pitch and blue marker dot
+
+                if (learnerPitchesThisSession.has(filename)) {
+                    // Fetch and plot learner pitch after successful upload
+                    try {
+                        const learnerResp = await fetch(`/api/learner_pitch/${filename}`);
+                        if (learnerResp.ok) {
+                            const learnerData = await learnerResp.json();
+                            const learnerPitch = learnerData.pitch;
+
+                            const learnerTime = [];
+                            const step = timeSeries.length > 0 ? (timeSeries[timeSeries.length - 1] / learnerPitch.length) : 0;
+                            for (let i = 0; i < learnerPitch.length; i++) {
+                                learnerTime.push(i * step);
+                            }
+
+                            const learnerTrace = {
+                                x: learnerTime,
+                                y: learnerPitch,
+                                mode: 'lines',
+                                type: 'scatter',
+                                line: { shape: 'spline', color: 'green' },
+                                name: 'Learner Pitch'
+                            };
+
+                            Plotly.addTraces('pitch-plot', learnerTrace);
+
+                            learnerPitchesThisSession.add(filename);
+                        }
+                    } catch (err) {
+                        console.warn("Error plotting learner pitch after upload:", err);
+                    }
+                }
+
                 currentAudio = data.audio;
 
                 const scriptChoice = document.getElementById("scriptChoice").value;
@@ -256,6 +311,92 @@
         document.getElementById("scriptChoice").addEventListener("change", () => {
             loadAndPlotFile(document.getElementById("fileSelector").value);
         })
+
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        const startBtn = document.getElementById("startBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const recordedPlayer = document.getElementById("recordedPlayer");
+
+        startBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                recordedChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: "audio/webm" }); // match upload type
+                    recordedPlayer.src = URL.createObjectURL(blob);
+                    recordedPlayer.style.display = "block";
+                    uploadBtn.disabled = false;
+                };
+
+                mediaRecorder.start();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+            } catch (err) {
+                alert("Microphone access failed. Please check browser permissions.");
+                console.error("Mic error:", err);
+            }
+        };
+
+        stopBtn.onclick = () => {
+            mediaRecorder.stop();
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+
+        uploadBtn.onclick = async () => {
+            const blob = new Blob(recordedChunks, { type: "audio/webm" });  // <- updated MIME type
+            const formData = new FormData();
+            const fileId = document.getElementById("fileSelector").value;
+            formData.append("audio", blob, `${fileId}_learner.webm`);
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Upload failed:", errorText);
+                    alert("Upload failed: " + errorText);
+                } else {
+                    const result = await response.text();
+                    alert("Upload successful: " + result);
+                }
+                learnerPitchesThisSession.add(fileId);
+                recordedPlayer.src = `/learner_audio/${fileId}_learner.wav`;
+                recordedPlayer.style.display = "block";
+
+            } catch (err) {
+                console.error("Network or server error:", err);
+                alert("An error occurred while uploading.");
+            }
+        };
+
+        // logic to reset page when refreshing
+        window.onload = () => {
+            recordedPlayer.src = "";
+            recordedPlayer.style.display = "none";
+            uploadBtn.disabled = true;
+
+            Plotly.react("pitch-plot", [], {
+                title: "Pitch Contour: (waiting...)",
+                xaxis: { title: "Time (s)" },
+                yaxis: { title: "Pitch (Hz)", range: [0, 400] }
+            });
+        };
+
+
     </script>
 </body>
 </html>

@@ -1,6 +1,9 @@
-from flask import Flask, render_template, jsonify, send_from_directory
+from flask import Flask, render_template, jsonify, send_from_directory, request
 import os
 import json
+import parselmouth
+from pydub import AudioSegment
+
 
 app = Flask(__name__)
 
@@ -51,6 +54,58 @@ def get_available():
     files = os.listdir(pitch_dir)
     ids = [f.split("_")[0] for f in files if f.endswith("_aligned_pitch.json")]
     return jsonify(sorted(set(ids)))
+
+@app.route("/upload", methods=["POST"])
+def upload_audio():
+    audio = request.files["audio"]
+    if not audio:
+        return "No audio uploaded", 400
+
+    filename = audio.filename  # e.g. f1_learner.webm
+    base = filename.replace("_learner.webm", "")
+    wav_filename = f"{base}_learner.wav"
+    save_path = os.path.join("static/learner_audio", wav_filename)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    # Save WebM temporarily
+    temp_path = os.path.join("static/learner_audio", "temp.webm")
+    audio.save(temp_path)
+
+    # Convert to WAV
+    sound = AudioSegment.from_file(temp_path, format="webm")
+    sound.export(save_path, format="wav")
+
+    # Clean up temp file
+    os.remove(temp_path)
+
+    return f"Saved {wav_filename}", 200
+
+@app.route("/learner_audio/<filename>")
+def get_learner_audio(filename):
+    return send_from_directory("static/learner_audio", filename)
+
+@app.route("/api/learner_pitch/<filename>")
+def get_learner_pitch(filename):
+    audio_path = os.path.join("static", "learner_audio", f"{filename}_learner.wav")
+    
+    print("Looking for:", audio_path)
+    if not os.path.exists(audio_path):
+        return jsonify({"error": "Learner audio not found"}), 404
+
+    snd = parselmouth.Sound(audio_path)
+    pitch = snd.to_pitch()
+    pitch_values = []
+
+    for t in range(pitch.get_number_of_frames()):
+        hz = pitch.get_value_in_frame(t)
+        pitch_values.append(hz if hz > 0 else None)  # None = unvoiced
+
+    return jsonify({
+        "filename": filename,
+        "pitch": pitch_values
+    })
+
 
 if __name__ == "__main__":
     app.run(debug=True)
