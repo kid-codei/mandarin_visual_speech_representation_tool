@@ -35,6 +35,10 @@
     <button onclick="playAudio()">Play Audio</button>
     <audio id="audioPlayer" controls style="display: none;"></audio>
 
+    <div id="recordingIndicator" style="display:none; color: red; font-weight: bold; margin-bottom: 10px;">
+        🔴 Recording... <span id="recordingTimer">0.0</span>s
+    </div>
+
     <h3>Record Your Pronounciation</h3>
     <button id="startBtn">Start Recording</button>
     <button id="stopBtn" disabled>Stop Recording</button>
@@ -46,7 +50,8 @@
         let timeSeries = [];
         let pitchSeries = [];
         let learnerPitchesThisSession = new Set();
-        
+        let recordingStartTime = null;
+        let timerInterval = null;
 
         async function loadFileOptions() {
             const response = await fetch("/api/available")
@@ -330,7 +335,19 @@
                     if (event.data.size > 0) recordedChunks.push(event.data);
                 };
 
+                recordingStartTime = Date.now();
+                document.getElementById("recordingIndicator").style.display = "block";
+
+                timerInterval = setInterval(() => {
+                    const elapsed = ((Date.now() - recordingStartTime) / 1000).toFixed(1);
+                    document.getElementById("recordingTimer").textContent = elapsed;
+                }, 100);
+
                 mediaRecorder.onstop = () => {
+                    clearInterval(timerInterval);
+                    document.getElementById("recordingIndicator").style.display = "none";
+                    document.getElementById("recordingTimer").textContent = "0.0";
+                    
                     const blob = new Blob(recordedChunks, { type: "audio/webm" }); // match upload type
                     recordedPlayer.src = URL.createObjectURL(blob);
                     recordedPlayer.style.display = "block";
