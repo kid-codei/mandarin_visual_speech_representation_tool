@@ -30,15 +30,15 @@ def align_pitch_to_text(filename):
     aligned = []
 
     # to handle specific aeneas output that is unexpected
-    # Load and normalize Aeneas alignment JSON
+    # load and normalize aeneas alignment json
     with open(align_path) as f:
         raw_align = json.load(f)
 
-    # Handle wrapped Aeneas structure
+    # handle wrapped aeneas structure
     if isinstance(raw_align, dict):
         if "fragments" in raw_align:
             align_data = raw_align["fragments"]
-        elif "children" in raw_align:  # old-style nested Aeneas structure
+        elif "children" in raw_align:  
             align_data = raw_align["children"]
         else:
             print(f"[skip] Unexpected format in {align_path}")
@@ -56,11 +56,9 @@ def align_pitch_to_text(filename):
 
         text = entry.get("text")
 
-        # If "text" is missing, try "lines"
         if text is None and "lines" in entry:
             text = " ".join(entry["lines"])
 
-        # Skip if still no text
         if not text:
             continue
 
