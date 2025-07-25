@@ -110,19 +110,12 @@ mandarin_visual_speech_representation_tool/
 │   └── learner_audios/       # Folder where learner recordings will be kept
 ├── templates/
 │   ├── index.html            # HTML for the front-end website
-├── venv/                     # Environment files
-│   ├── bin
-│   ├── include
-│   ├── lib
-│   ├── share
-│   └── pvenv.cfg
 ├── app.py                    # Flask app for the back-end 
 ├── README.md                 # Instructures for installation
 └── requirements.txt          # Python dependencies
 ```
 
 ### Next Steps
-Next Steps:
 - Standardizing pitch between male/female speakers (high or low vocal ranges)
 - Improvements to segmentation accuracy
 - Color coding words
