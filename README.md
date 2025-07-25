@@ -55,7 +55,6 @@ Follow the instructions based on your operating system:
 
 4. **Run the app:**
     ```bash
-    source venv/bin/activate     
     python app.py
     ```
 
