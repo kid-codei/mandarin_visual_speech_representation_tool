@@ -113,6 +113,7 @@ mandarin_visual_speech_representation_tool/
 ├── app.py                    # Flask app for the back-end 
 ├── README.md                 # Instructures for installation
 └── requirements.txt          # Python dependencies
+└── setup.py                  # File to set up locally
 ```
 
 ### Next Steps
