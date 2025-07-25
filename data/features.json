@@ -1,7 +1,0 @@
-[
-    {
-        "audio_filename": "m1.wav",
-        "pitch": [120, 130, 115, 110],
-        "alignment": [{"char": "你", "start": 0.0, "end": 0.5}, {"char": "好", "start": 0.5, "end": 1.0}]
-    }
-]

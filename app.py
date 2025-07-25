@@ -73,15 +73,15 @@ def upload_audio():
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-    # Save WebM temporarily
+    # save WebM temporarily
     temp_path = os.path.join("static/learner_audio", "temp.webm")
     audio.save(temp_path)
 
-    # Convert to WAV
+    # convert to WAV
     sound = AudioSegment.from_file(temp_path, format="webm")
     sound.export(save_path, format="wav")
 
-    # Clean up temp file
+    # clean up temp file
     os.remove(temp_path)
 
     return f"Saved {wav_filename}", 200
@@ -90,7 +90,7 @@ def upload_audio():
 @app.route("/learner_audio/<filename>")
 def get_learner_audio(filename):
     try:
-        # Ensure the file exists before attempting to send it
+        # make sure file exists before attempting to send it
         if not os.path.exists(os.path.join("static", "learner_audio", filename)):
             return jsonify({"error": "Audio file not found"}), 404
         return send_from_directory("static/learner_audio", filename)

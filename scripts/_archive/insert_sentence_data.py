@@ -7,7 +7,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sentences_path = os.path.join(base_dir, "data", "sentence_data.json")
 db_path = os.path.join(base_dir, "db", "sentences.db")
 
-# Load sentence data
+# load sentence data
 with open(sentences_path, "r", encoding="utf-8") as f:
     sentences = json.load(f)
 
