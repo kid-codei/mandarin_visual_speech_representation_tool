@@ -5,6 +5,7 @@ import sqlite3
 # will convert traditional characters to simplified
 converter = OpenCC('t2s')
 
+# get pinyin from the character
 def get_pinyin(text):
     return ' '.join([syllable[0] for syllable in pinyin(text, style=Style.TONE3)])
 
@@ -15,6 +16,7 @@ cursor.execute("SELECT id, chinese_traditional FROM Sentences")
 rows = cursor.fetchall()
 
 # get simplified and pinyin text for traditional sentence
+# update the database
 for id_, trad_text in rows:
     simp_text = converter.convert(trad_text)
     pinyin_text = get_pinyin(trad_text)

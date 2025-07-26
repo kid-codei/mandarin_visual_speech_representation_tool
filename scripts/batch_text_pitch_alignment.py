@@ -18,6 +18,7 @@ def align_pitch_to_text(filename):
         print(f"[skip] Missing file for {filename}")
         return
     
+    # get audio dur
     snd = parselmouth.Sound(audio_path)
     duration = snd.get_total_duration()
 
@@ -73,6 +74,7 @@ def align_pitch_to_text(filename):
             "pitch_segment": pitch_segment
         })
 
+    # dump aligned word and audio info in json
     out_path = os.path.join(OUTPUT_DIR, f"{filename}_aligned_pitch.json")
     with open(out_path, "w") as f:
         json.dump(aligned, f, indent=2)

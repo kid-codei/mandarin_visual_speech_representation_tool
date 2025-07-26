@@ -23,6 +23,7 @@ for row in rows:
         "pinyin": pinyin_text
     })
 
+# dump info into json
 with open("static/json/sentences.json", "w", encoding="utf-8") as f:
     json.dump(sentences, f, ensure_ascii=False, indent=2)
 

@@ -8,6 +8,7 @@ AUDIO_DIR = "static/audio"
 PITCH_DIR = "static/json/pitch"
 OUTPUT_DIR = "static/json/plots"
 
+# get audio file and json ifno
 def plot_pitch(filename):
     audio_path = os.path.join(AUDIO_DIR, filename + ".wav")
     json_path = os.path.join(PITCH_DIR, filename + "_pitch.json")
@@ -34,6 +35,7 @@ def plot_pitch(filename):
     plt.grid(True)
     plt.tight_layout()
 
+    # save the visual into folder
     out_path = os.path.join(OUTPUT_DIR, f"{filename}_pitch_plot.png")
     plt.savefig(out_path)
     plt.close()

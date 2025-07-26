@@ -1,6 +1,7 @@
 import sqlite3
 import os
 
+# sanity check file
 db_path = "../db/sentences.db"
 conn = sqlite3.connect(db_path)
 c = conn.cursor()

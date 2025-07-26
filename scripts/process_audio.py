@@ -5,12 +5,15 @@ import json
 AUDIO_DIR = "static/audio"
 OUTPUT_DIR = "static/json/pitch"
 
+# get pitch values from audio file
 def extract_pitch(audio_path):
     snd = parselmouth.Sound(audio_path)
     pitch = snd.to_pitch()
     pitch_values = pitch.selected_array["frequency"].tolist()
     return pitch_values
 
+# handle finding audio file and where to store
+# get pitches and dump info into json
 def main():
     for filename in os.listdir(AUDIO_DIR):
         if filename.endswith(".wav"):
