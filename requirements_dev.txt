@@ -1,0 +1,5 @@
+# requirements-dev.txt — for local development only
+-r requirements.txt
+
+# Only needed when generating new alignments offline
+aeneas==1.7.3.0
