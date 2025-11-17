@@ -357,6 +357,7 @@
     let currentAudio = null;
     let timeSeries = [];
     let pitchSeries = [];
+    let nativeSemitonesGlobal = [];
     const learnerPitches = new Set();
     const statusMsg = document.getElementById("statusMessage");
 
@@ -542,14 +543,52 @@
       const annotations = [];
       const shapes = [];
 
+      // 1) First pass: build timeSeries, pitchSeries, and shapes
       alignment.forEach(seg => {
         const { start, end, pitch_segment, text } = seg;
         const step = (end - start) / pitch_segment.length;
+
         pitch_segment.forEach((hz, i) => {
           timeSeries.push(start + i * step);
           pitchSeries.push(hz);
         });
 
+        shapes.push(
+          {
+            type: 'line',
+            x0: start,
+            x1: start,
+            y0: 0,
+            y1: 1,
+            xref: 'x',
+            yref: 'paper',
+            line: { color: 'red', width: 1, dash: 'dot' }
+          },
+          {
+            type: 'line',
+            x0: end,
+            x1: end,
+            y0: 0,
+            y1: 1,
+            xref: 'x',
+            yref: 'paper',
+            line: { color: 'red', width: 1, dash: 'dot' }
+          }
+        );
+      });
+
+      // 2) Normalize native pitch & compute yMin/yMax
+      const nativeSemitones = normalizePitchToSemitones(pitchSeries);
+      const validNative = nativeSemitones.filter(v => v !== null && !Number.isNaN(v));
+      const yMin = validNative.length ? Math.min(...validNative) : -5;
+      const yMax = validNative.length ? Math.max(...validNative) : 5;
+
+      // Make semitones accessible for the playback marker
+      window.nativeSemitonesGlobal = nativeSemitones;
+
+      // 3) Now build annotations, *after* we know yMax
+      alignment.forEach(seg => {
+        const { start, end, text } = seg;
         annotations.push({
           x: (start + end) / 2,
           y: yMax * 1.1,
@@ -557,18 +596,7 @@
           showarrow: false,
           font: { size: 16 }
         });
-
-        shapes.push(
-          { type: 'line', x0: start, x1: start, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'red', width: 1, dash: 'dot' } },
-          { type: 'line', x0: end, x1: end, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'red', width: 1, dash: 'dot' } }
-        );
       });
-
-      // === NEW: normalize native pitch to semitones ===
-      const nativeSemitones = normalizePitchToSemitones(pitchSeries);
-      const validNative = nativeSemitones.filter(v => v !== null && !Number.isNaN(v));
-      const yMin = validNative.length ? Math.min(...validNative) : -5;
-      const yMax = validNative.length ? Math.max(...validNative) : 5;
 
       const nativeTrace = {
         x: timeSeries,
@@ -590,7 +618,6 @@
       const layout = {
         title: `Pitch Contour: ${filename}`,
         xaxis: { title: "Time (s)" },
-        // yaxis: { title: "Pitch (Hz)", range: [0, Math.max(...pitchSeries) * 1.2] },
         yaxis: {
           title: "Relative pitch (semitones)",
           range: [yMin - 2, yMax + 2]
@@ -607,16 +634,17 @@
 
       Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
 
+      // Update text display under the plot
       const display = document.getElementById("scriptChoice").value;
       const output = document.getElementById("text-alignment");
 
       output.innerHTML = display === "pinyin" ? `<div>${pinyin}</div>` :
-                         display === "traditional" ? `<div>${traditional}</div>` :
-                         display === "simplified" ? `<div>${simplified}</div>` :
-                         display === "both_trad" ? createAlignedTextHTML(traditional, pinyin) :
-                         display === "both_simp" ? createAlignedTextHTML(simplified, pinyin) : "";
+                        display === "traditional" ? `<div>${traditional}</div>` :
+                        display === "simplified" ? `<div>${simplified}</div>` :
+                        display === "both_trad" ? createAlignedTextHTML(traditional, pinyin) :
+                        display === "both_simp" ? createAlignedTextHTML(simplified, pinyin) : "";
 
-      // If learner pitch already exists, add it as a second trace
+      // 4) If learner pitch already exists, add it as a second trace (also normalized)
       if (learnerPitches.has(filename)) {
         try {
           const resp = await fetch(`${API_BASE}/api/learner_pitch/${filename}`);
@@ -626,6 +654,7 @@
             const step = timeSeries[timeSeries.length - 1] / lpitch.length;
             const ltime = lpitch.map((_, i) => i * step);
             const learnerY = normalizePitchToSemitones(lpitch);
+
             const learnerTrace = {
               x: ltime,
               y: learnerY,
@@ -666,8 +695,12 @@
       const updateDot = () => {
         const t = audio.currentTime;
         const i = timeSeries.findIndex(x => x >= t);
-        if (i >= 0) {
-          Plotly.restyle("pitch-plot", { x: [[timeSeries[i]]], y: [[pitchSeries[i]]] }, [1]);
+        if (i >= 0 && nativeSemitonesGlobal && nativeSemitonesGlobal.length > i) {
+          Plotly.restyle(
+            "pitch-plot",
+            { x: [[timeSeries[i]]], y: [[nativeSemitonesGlobal[i]]] },
+            [1]  // marker trace index
+          );
         }
         if (!audio.paused && !audio.ended) requestAnimationFrame(updateDot);
       };
