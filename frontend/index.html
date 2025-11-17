@@ -227,12 +227,6 @@
       margin-bottom: 2px;
     }
 
-    #browserWarning {
-      margin-top: 6px;
-      font-size: 0.86rem;
-      color: #b91c1c;
-    }
-
     @media (max-width: 768px) {
       .app {
         padding: 18px 16px 24px;
@@ -301,7 +295,6 @@
           <button id="stopBtn" disabled>■ Stop</button>
           <button id="uploadBtn" disabled>⬆ Upload &amp; Analyze</button>
         </div>
-        <div id="browserWarning" style="display:none;"></div>
         <div id="recordingIndicator" style="display: none;">
           Recording... <span id="recordingTimer">0.0</span>s
         </div>
@@ -336,8 +329,12 @@
   </div>
 
   <script>
-    // API base: empty for same-origin Flask (http://localhost:5000).
-    // If you deploy backend separately, put its base URL here.
+    // ===========================
+    //  API base configuration
+    // ===========================
+    // If index.html is served BY Flask (same domain), leave this as "".
+    // If index.html is on Netlify and Flask is on Render, set:
+    //   const API_BASE = "https://YOUR-RENDER-BACKEND-URL";
     const API_BASE = "";
 
     let currentAudio = null;
@@ -346,24 +343,20 @@
     const learnerPitches = new Set();
     const statusMsg = document.getElementById("statusMessage");
 
-    // Session history structure:
     // { [filename]: [{ timestamp, overall }] }
     const sessionHistory = {};
 
-    // Recorder state
     const recorder = {
       mediaRecorder: null,
       chunks: [],
       stream: null,
       startTime: null,
       interval: null,
-      lastBlob: null,
-      lastMimeType: null,
-      supported: false
+      lastBlob: null
     };
 
     const updateButtons = ({ isRecording, hasRecording }) => {
-      document.getElementById("startBtn").disabled = !recorder.supported || isRecording;
+      document.getElementById("startBtn").disabled = isRecording;
       document.getElementById("stopBtn").disabled = !isRecording;
       document.getElementById("uploadBtn").disabled = !hasRecording;
     };
@@ -430,7 +423,6 @@
       detailsDiv.innerHTML = segHtml;
     };
 
-    // History only for current sentence
     const updateSessionHistory = () => {
       const histDiv = document.getElementById("session-history");
       const currentFile = document.getElementById("fileSelector").value;
@@ -475,7 +467,7 @@
         }
         sessionHistory[filename].push({
           timestamp: Date.now(),
-          overall: data.overall_score   // <-- name matches history renderer
+          overall: data.overall_score
         });
         updateSessionHistory();
       } catch (err) {
@@ -486,6 +478,12 @@
     const loadFileOptions = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/available`);
+        if (!res.ok) {
+          console.error("Error loading /api/available:", await res.text());
+          document.getElementById("session-history").textContent =
+            "Failed to load sentences. Check API_BASE or backend.";
+          return;
+        }
         const files = await res.json();
         const selector = document.getElementById("fileSelector");
         selector.innerHTML = "";
@@ -504,12 +502,17 @@
         }
       } catch (e) {
         console.error("Failed to load files:", e);
+        document.getElementById("session-history").textContent =
+          "Failed to load sentences (network error).";
       }
     };
 
     const loadAndPlotFile = async (filename) => {
       const res = await fetch(`${API_BASE}/api/pitch/${filename}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.error("Error loading /api/pitch:", await res.text());
+        return;
+      }
 
       const data = await res.json();
       currentAudio = data.audio;
@@ -643,48 +646,19 @@
       requestAnimationFrame(updateDot);
     };
 
-    // Check browser support for audio/webm; if not supported, disable recording
-    const detectRecordingSupport = () => {
-      const warning = document.getElementById("browserWarning");
-      if (!("MediaRecorder" in window)) {
-        warning.style.display = "block";
-        warning.textContent = "Recording is not supported in this browser.";
-        recorder.supported = false;
-        updateButtons({ isRecording: false, hasRecording: false });
-        return;
-      }
-
-      if (!MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-        warning.style.display = "block";
-        warning.textContent = "Recording is only supported in browsers that support audio/webm (e.g., recent Chrome or Edge).";
-        recorder.supported = false;
-        updateButtons({ isRecording: false, hasRecording: false });
-        return;
-      }
-
-      warning.style.display = "none";
-      warning.textContent = "";
-      recorder.supported = true;
-      updateButtons({ isRecording: false, hasRecording: false });
-    };
-
     document.getElementById("startBtn").onclick = async () => {
-      if (!recorder.supported) return;
-
       try {
-        recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        const mimeType = "audio/webm;codecs=opus";
-        recorder.mediaRecorder = new MediaRecorder(recorder.stream, { mimeType });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder.stream = stream;
+        recorder.mediaRecorder = new MediaRecorder(stream);
         recorder.chunks = [];
-        recorder.lastMimeType = mimeType;
 
         recorder.mediaRecorder.ondataavailable = e => {
           if (e.data.size > 0) recorder.chunks.push(e.data);
         };
 
         recorder.mediaRecorder.onstop = () => {
-          const blob = new Blob(recorder.chunks, { type: recorder.lastMimeType });
+          const blob = new Blob(recorder.chunks, { type: "audio/webm" });
           recorder.lastBlob = blob;
 
           const url = URL.createObjectURL(blob);
@@ -731,32 +705,33 @@
         return;
       }
 
-      // We force audio/webm here to stay consistent with backend ffmpeg settings
       const formData = new FormData();
       formData.append("audio", blob, `${fileId}_learner.webm`);
 
       try {
         const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || "(no error body)");
+        }
 
         learnerPitches.add(fileId);
         statusMsg.textContent = "Upload successful!";
         statusMsg.style.color = "green";
 
-        // Assuming backend saves as <fileId>_learner.wav and exposes /learner_audio/<filename>
         document.getElementById("recordedPlayer").src = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
 
         await loadAndPlotFile(fileId);
         await fetchAndApplyFeedback(fileId);
 
       } catch (err) {
+        console.error("Upload failed:", err);
         statusMsg.textContent = "Upload failed: " + err.message;
         statusMsg.style.color = "red";
       }
     };
 
     window.onload = () => {
-      detectRecordingSupport();
       loadFileOptions();
       resetRecordingUI();
       Plotly.newPlot("pitch-plot", [], {
@@ -764,7 +739,8 @@
         xaxis: { title: "Time (s)" },
         yaxis: { title: "Pitch (Hz)", range: [0, 400] }
       });
-      document.getElementById("session-history").textContent = "No attempts yet for this sentence.";
+      document.getElementById("session-history").textContent =
+        "No attempts yet for this sentence.";
     };
   </script>
 </body>
