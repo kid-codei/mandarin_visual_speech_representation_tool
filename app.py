@@ -107,7 +107,7 @@ def get_audio(filename: str):
 def upload_audio():
     """Accept a learner recording uploaded from the browser.
 
-    The frontend currently sends WebM blobs; we convert to WAV and save as:
+    We accept various containers (webm, mp4, ogg, etc.) and convert to WAV:
       static/learner_audio/<base>_learner.wav
     where <base> matches the sentence ID (e.g. 'm1').
     """
@@ -115,24 +115,60 @@ def upload_audio():
     if not audio:
         return "No audio uploaded", 400
 
-    # Expect filenames like "m1_learner.webm" from the frontend
-    base = audio.filename.replace("_learner.webm", "")
+    # Strip extension first
+    original_name = audio.filename or ""
+    name_no_ext, ext = os.path.splitext(original_name)
+
+    # Strip trailing "_learner" if present (works for .webm, .mp4, .ogg, etc.)
+    if name_no_ext.endswith("_learner"):
+        base = name_no_ext[:-len("_learner")]
+    else:
+        base = name_no_ext  # fallback
+
     wav_filename = f"{base}_learner.wav"
     save_dir = os.path.join("static", "learner_audio")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, wav_filename)
 
-    temp_path = os.path.join(save_dir, "temp.webm")
+    # Determine a reasonable temp extension from mimetype or filename
+    mimetype = (audio.mimetype or "").split(";")[0]  # e.g. "audio/webm"
+    ext_map = {
+        "audio/webm": "webm",
+        "video/webm": "webm",
+        "audio/ogg": "ogg",
+        "audio/mpeg": "mp3",
+        "audio/mp4": "mp4",
+        "audio/wav": "wav",
+    }
+    input_ext = ext_map.get(mimetype, ext.lstrip(".") or "webm")
+
+    temp_path = os.path.join(save_dir, f"temp.{input_ext}")
+
     try:
         audio.save(temp_path)
-        # Convert WebM -> WAV
-        AudioSegment.from_file(temp_path, format="webm").export(save_path, format="wav")
+
+        # If the file is empty, bail early with a clearer error
+        if os.path.getsize(temp_path) == 0:
+            os.remove(temp_path)
+            return "Empty recording uploaded; please try again.", 400
+
+        # Let pydub/ffmpeg auto-detect input format based on file header
+        sound = AudioSegment.from_file(temp_path)
+        sound.export(save_path, format="wav")
+
         os.remove(temp_path)
     except Exception as e:
         traceback.print_exc()
+        # Clean up temp file if it exists
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
         return f"Audio conversion failed: {str(e)}", 500
 
     return f"Saved {wav_filename}", 200
+
 
 
 @app.route("/learner_audio/<filename>")
