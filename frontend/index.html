@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mandarin Visual Speech Tool</title>
+  <title>Mandarin Visual Speech Represetation Tool</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     :root {
@@ -334,6 +334,26 @@
     // ===========================
     const API_BASE = "https://mvsrt-backend.onrender.com";
 
+    const normalizePitchToSemitones = (hzArray) => {
+      // Filter out unvoiced / zero values
+      const voiced = hzArray.filter(v => v && v > 0);
+      if (voiced.length === 0) {
+        // No voiced samples: return all null
+        return hzArray.map(() => null);
+      }
+
+      // Median F0 as reference
+      const sorted = [...voiced].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+
+      // Convert each Hz value to semitones relative to median
+      return hzArray.map(v =>
+        (v && v > 0)
+          ? 12 * Math.log2(v / median)
+          : null
+      );
+    };
+
     let currentAudio = null;
     let timeSeries = [];
     let pitchSeries = [];
@@ -532,7 +552,7 @@
 
         annotations.push({
           x: (start + end) / 2,
-          y: Math.max(...pitchSeries) * 1.1,
+          y: yMax * 1.1,
           text,
           showarrow: false,
           font: { size: 16 }
@@ -544,9 +564,15 @@
         );
       });
 
+      // === NEW: normalize native pitch to semitones ===
+      const nativeSemitones = normalizePitchToSemitones(pitchSeries);
+      const validNative = nativeSemitones.filter(v => v !== null && !Number.isNaN(v));
+      const yMin = validNative.length ? Math.min(...validNative) : -5;
+      const yMax = validNative.length ? Math.max(...validNative) : 5;
+
       const nativeTrace = {
         x: timeSeries,
-        y: pitchSeries,
+        y: nativeSemitones,
         type: "scatter",
         mode: "lines",
         line: { shape: "spline" },
@@ -564,7 +590,11 @@
       const layout = {
         title: `Pitch Contour: ${filename}`,
         xaxis: { title: "Time (s)" },
-        yaxis: { title: "Pitch (Hz)", range: [0, Math.max(...pitchSeries) * 1.2] },
+        // yaxis: { title: "Pitch (Hz)", range: [0, Math.max(...pitchSeries) * 1.2] },
+        yaxis: {
+          title: "Relative pitch (semitones)",
+          range: [yMin - 2, yMax + 2]
+        },
         annotations,
         shapes,
         legend: {
@@ -595,9 +625,10 @@
             const lpitch = learnerData.pitch;
             const step = timeSeries[timeSeries.length - 1] / lpitch.length;
             const ltime = lpitch.map((_, i) => i * step);
+            const learnerY = normalizePitchToSemitones(lpitch);
             const learnerTrace = {
               x: ltime,
-              y: lpitch,
+              y: learnerY,
               mode: "lines",
               type: "scatter",
               line: { shape: "spline" },
@@ -734,7 +765,8 @@
       Plotly.newPlot("pitch-plot", [], {
         title: "Pitch Contour: (waiting...)",
         xaxis: { title: "Time (s)" },
-        yaxis: { title: "Pitch (Hz)", range: [0, 400] }
+        // yaxis: { title: "Pitch (Hz)", range: [0, 400] }
+        yaxis: { title: "Relative pitch (semitones)", range: [-12, 12] }
       });
       document.getElementById("session-history").textContent =
         "No attempts yet for this sentence.";
