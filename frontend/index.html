@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mandarin Visual Speech Tool</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    #pitch-plot {
+      width: 100%;
+      height: 400px;
+      margin-top: 40px;
+    }
+    #text-alignment {
+      margin-top: 20px;
+      font-size: 1.2em;
+    }
+    #english-sentence {
+      margin-top: 10px;
+      font-size: 1em;
+      color: #555;
+    }
+    #recordingIndicator {
+      color: red;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    button {
+      margin-right: 10px;
+    }
+    /* NEW: basic styling for feedback + history */
+    #feedback-summary {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    #feedback-details {
+      margin-top: 10px;
+    }
+    #feedback-details span {
+      display: inline-block;
+      margin: 2px 4px;
+    }
+    #session-history {
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mandarin Visual Speech Tool</h1>
+
+  <!-- dropdown to choose a sentence; options are populated dynamically from the backend -->
+  <label for="fileSelector">Choose sentence:</label>
+  <select id="fileSelector"></select>
+
+  <label for="scriptChoice" style="margin-left: 20px;">Display:</label>
+  <select id="scriptChoice">
+    <option value="pinyin">Pinyin Only</option>
+    <option value="traditional">Traditional</option>
+    <option value="simplified">Simplified</option>
+    <option value="both_trad">Traditional + Pinyin</option>
+    <option value="both_simp">Simplified + Pinyin</option>
+  </select>
+
+  <div id="english-sentence"></div>
+  <div id="text-alignment"></div>
+
+  <button onclick="playAudio()">Play Native Audio</button>
+
+  <h3>Record Your Pronunciation</h3>
+  <button id="startBtn">Start</button>
+  <button id="stopBtn" disabled>Stop</button>
+  <button id="uploadBtn" disabled>Upload</button>
+  <div id="recordingIndicator" style="display: none;">Recording... <span id="recordingTimer">0.0</span>s</div>
+  <div id="statusMessage"></div>
+
+  <audio id="audioPlayer" controls style="display:none;"></audio>
+  <audio id="recordedPlayer" controls style="display:none;"></audio>
+
+  <div id="pitch-plot"></div>
+
+  <!-- NEW: feedback + session history UI containers -->
+  <h3>Pronunciation Feedback</h3>
+  <div id="feedback-summary"></div>
+  <div id="feedback-details"></div>
+
+  <h4>Session History (this browser)</h4>
+  <div id="session-history"></div>
+
+  <script>
+    // NEW: API base for future deployment (e.g. Render). For local Flask, leave as "".
+    // If you deploy the backend at https://your-backend.onrender.com, set:
+    //   const API_BASE = "https://your-backend.onrender.com";
+    const API_BASE = "https://mvsrt-backend.onrender.com";
+
+
+    // globals for current audio file and pitch plot data
+    let currentAudio = null;
+    let timeSeries = [];
+    let pitchSeries = [];
+    const learnerPitches = new Set();
+    const statusMsg = document.getElementById("statusMessage");
+
+    // simple in-memory session history:
+    // { [filename]: [{ timestamp, overallScore }] }
+    const sessionHistory = {};
+
+    // manage recording state, chunks, and timing
+    const recorder = {
+      mediaRecorder: null,
+      chunks: [],
+      stream: null,
+      startTime: null,
+      interval: null
+    };
+
+    const updateButtons = ({ isRecording, hasRecording }) => {
+      document.getElementById("startBtn").disabled = isRecording;
+      document.getElementById("stopBtn").disabled = !isRecording;
+      document.getElementById("uploadBtn").disabled = !hasRecording;
+    };
+
+    const resetRecordingUI = () => {
+      document.getElementById("recordingIndicator").style.display = "none";
+      document.getElementById("recordingTimer").textContent = "0.0";
+      document.getElementById("recordedPlayer").style.display = "none";
+      updateButtons({ isRecording: false, hasRecording: false });
+    };
+
+    // helper function to render characters and pinyin in two lines per character
+    const createAlignedTextHTML = (chars, pinyin) => {
+      const charList = chars.split("");
+      const pinyinList = pinyin.split(" ");
+      return "<div style='display: flex; gap: 10px; flex-wrap: wrap;'>" +
+        charList.map((ch, i) =>
+          `<div style="text-align:center;">
+            <div>${ch}</div>
+            <div style="font-size: 0.9em; color: gray;">${pinyinList[i] || ""}</div>
+          </div>`).join("") +
+        "</div>";
+    };
+
+    // NEW: render backend feedback (colors, arrows, scores)
+    const renderFeedback = (filename, feedback) => {
+      const summaryDiv = document.getElementById("feedback-summary");
+      const detailsDiv = document.getElementById("feedback-details");
+
+      if (!feedback || !feedback.segments || feedback.segments.length === 0) {
+        summaryDiv.textContent = "No feedback available yet.";
+        detailsDiv.innerHTML = "";
+        return;
+      }
+
+      summaryDiv.textContent = `Overall score for ${filename}: ${feedback.overall_score.toFixed(1)} / 100`;
+
+      const arrowMap = {
+        up: "↑",
+        down: "↓",
+        ok: "✓",
+        unknown: "?"
+      };
+
+      const segHtml = feedback.segments.map(seg => {
+        const color = seg.color || "gray";
+        const arrow = arrowMap[seg.pitch_direction] || "";
+        const bg = (color === "green")
+          ? "#d4edda"
+          : (color === "yellow")
+          ? "#fff3cd"
+          : (color === "red")
+          ? "#f8d7da"
+          : "#e2e3e5";
+
+        return `
+          <span style="margin-right: 8px; padding: 2px 4px; border-radius: 4px; background: ${bg};">
+            <span style="font-weight:bold;">${seg.text || ""}</span>
+            <span style="margin-left:4px;">${arrow}</span>
+            <span style="margin-left:4px; font-size:0.8em;">${seg.score.toFixed(1)}</span>
+          </span>
+        `;
+      }).join("");
+
+      detailsDiv.innerHTML = segHtml;
+    };
+
+    // NEW: update client-side session history UI
+    const updateSessionHistory = () => {
+      const histDiv = document.getElementById("session-history");
+      const entries = [];
+
+      Object.entries(sessionHistory).forEach(([fname, attempts]) => {
+        attempts.forEach(attempt => {
+          entries.push({
+            filename: fname,
+            timestamp: attempt.timestamp,
+            overall: attempt.overallScore
+          });
+        });
+      });
+
+      if (entries.length === 0) {
+        histDiv.textContent = "No attempts yet this session.";
+        return;
+      }
+
+      entries.sort((a, b) => b.timestamp - a.timestamp);
+
+      histDiv.innerHTML = "<ul>" + entries.map(e =>
+        `<li>${new Date(e.timestamp).toLocaleTimeString()} – ${e.filename}: ${e.overall.toFixed(1)}</li>`
+      ).join("") + "</ul>";
+    };
+
+    // NEW: fetch /api/evaluate/<filename> and apply feedback + history
+    const fetchAndApplyFeedback = async (filename) => {
+      try {
+        const res = await fetch(`${API_BASE}/api/evaluate/${filename}`);
+        if (!res.ok) {
+          console.warn("No feedback yet:", await res.text());
+          return;
+        }
+        const data = await res.json();
+        renderFeedback(filename, data);
+
+        if (!sessionHistory[filename]) {
+          sessionHistory[filename] = [];
+        }
+        sessionHistory[filename].push({
+          timestamp: Date.now(),
+          overallScore: data.overall_score
+        });
+        updateSessionHistory();
+      } catch (err) {
+        console.error("Feedback fetch failed:", err);
+      }
+    };
+
+    // get pitch and alignment data for a sentence and updates the plot and text display
+    const loadFileOptions = async () => {
+      const res = await fetch(`${API_BASE}/api/available`);
+      const files = await res.json();
+      const selector = document.getElementById("fileSelector");
+      selector.innerHTML = "";
+      files.forEach(id => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        selector.appendChild(opt);
+      });
+      if (files.length > 0) {
+        selector.value = files[0];
+        loadAndPlotFile(files[0]);
+      }
+    };
+
+    const loadAndPlotFile = async (filename) => {
+      const res = await fetch(`${API_BASE}/api/pitch/${filename}`);
+      if (!res.ok) return;
+
+      const data = await res.json();
+      currentAudio = data.audio;
+
+      const { alignment, pinyin, traditional, simplified, english } = data;
+      document.getElementById("english-sentence").textContent = english;
+
+      timeSeries = [];
+      pitchSeries = [];
+      const annotations = [];
+      const shapes = [];
+
+      alignment.forEach(seg => {
+        const { start, end, pitch_segment, text } = seg;
+        const step = (end - start) / pitch_segment.length;
+        pitch_segment.forEach((hz, i) => {
+          timeSeries.push(start + i * step);
+          pitchSeries.push(hz);
+        });
+
+        annotations.push({
+          x: (start + end) / 2,
+          y: Math.max(...pitchSeries) * 1.1,
+          text,
+          showarrow: false,
+          font: { size: 16 }
+        });
+
+        shapes.push(
+          { type: 'line', x0: start, x1: start, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'red', width: 1, dash: 'dot' } },
+          { type: 'line', x0: end, x1: end, y0: 0, y1: 1, xref: 'x', yref: 'paper', line: { color: 'red', width: 1, dash: 'dot' } }
+        );
+      });
+
+      const nativeTrace = {
+        x: timeSeries,
+        y: pitchSeries,
+        type: "scatter",
+        mode: "lines",
+        line: { shape: "spline" },
+        name: "Native Pitch"
+      };
+
+      const markerTrace = {
+        x: [0],
+        y: [0],
+        mode: "markers",
+        marker: { color: "blue", size: 8 },
+        name: "Playback Position"
+      };
+
+      const layout = {
+        title: `Pitch Contour: ${filename}`,
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Pitch (Hz)", range: [0, Math.max(...pitchSeries) * 1.2] },
+        annotations,
+        shapes
+      };
+
+      Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
+
+      const display = document.getElementById("scriptChoice").value;
+      const output = document.getElementById("text-alignment");
+
+      output.innerHTML = display === "pinyin" ? `<div>${pinyin}</div>` :
+                         display === "traditional" ? `<div>${traditional}</div>` :
+                         display === "simplified" ? `<div>${simplified}</div>` :
+                         display === "both_trad" ? createAlignedTextHTML(traditional, pinyin) :
+                         display === "both_simp" ? createAlignedTextHTML(simplified, pinyin) : "";
+
+      // try plotting learner pitch if already uploaded
+      if (learnerPitches.has(filename)) {
+        const resp = await fetch(`${API_BASE}/api/learner_pitch/${filename}`);
+        if (resp.ok) {
+          const learnerData = await resp.json();
+          const lpitch = learnerData.pitch;
+          const step = timeSeries[timeSeries.length - 1] / lpitch.length;
+          const ltime = lpitch.map((_, i) => i * step);
+          const learnerTrace = {
+            x: ltime,
+            y: lpitch,
+            mode: "lines",
+            type: "scatter",
+            line: { color: "green", shape: "spline" },
+            name: "Learner Pitch"
+          };
+          Plotly.addTraces("pitch-plot", learnerTrace);
+        }
+      }
+    };
+
+    document.getElementById("scriptChoice").onchange = () => {
+      loadAndPlotFile(document.getElementById("fileSelector").value);
+    };
+    document.getElementById("fileSelector").onchange = () => {
+      resetRecordingUI();
+      loadAndPlotFile(document.getElementById("fileSelector").value);
+    };
+
+    const playAudio = () => {
+      const audio = document.getElementById("audioPlayer");
+      if (!currentAudio) return;
+      audio.src = `${API_BASE}/audio/${currentAudio}`;
+      audio.play();
+      audio.style.display = "block";
+
+      const updateDot = () => {
+        const t = audio.currentTime;
+        const i = timeSeries.findIndex(x => x >= t);
+        if (i >= 0) {
+          Plotly.restyle("pitch-plot", { x: [[timeSeries[i]]], y: [[pitchSeries[i]]] }, [1]);
+        }
+        if (!audio.paused && !audio.ended) requestAnimationFrame(updateDot);
+      };
+      requestAnimationFrame(updateDot);
+    };
+
+    // start microphone recording and updates recording UI
+    document.getElementById("startBtn").onclick = async () => {
+      try {
+        recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder.mediaRecorder = new MediaRecorder(recorder.stream);
+        recorder.chunks = [];
+
+        recorder.mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) recorder.chunks.push(e.data);
+        };
+
+        recorder.mediaRecorder.onstop = () => {
+          const blob = new Blob(recorder.chunks, { type: "audio/webm" });
+          const url = URL.createObjectURL(blob);
+          const player = document.getElementById("recordedPlayer");
+          player.src = url;
+          player.style.display = "block";
+          updateButtons({ isRecording: false, hasRecording: true });
+        };
+
+        recorder.startTime = Date.now();
+        document.getElementById("recordingIndicator").style.display = "block";
+        recorder.interval = setInterval(() => {
+          const elapsed = ((Date.now() - recorder.startTime) / 1000).toFixed(1);
+          document.getElementById("recordingTimer").textContent = elapsed;
+        }, 100);
+
+        recorder.mediaRecorder.start();
+        updateButtons({ isRecording: true });
+
+      } catch (err) {
+        statusMsg.textContent = "Microphone access denied.";
+        statusMsg.style.color = "red";
+      }
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+      try {
+        recorder.mediaRecorder.stop();
+        clearInterval(recorder.interval);
+        document.getElementById("recordingIndicator").style.display = "none";
+      } catch (e) {
+        console.warn("Stop error:", e);
+      }
+    };
+
+    // upload learner recording to backend and triggers learner pitch replot
+    document.getElementById("uploadBtn").onclick = async () => {
+      statusMsg.textContent = "";
+      const fileId = document.getElementById("fileSelector").value;
+      const blob = new Blob(recorder.chunks, { type: "audio/webm" });
+      const formData = new FormData();
+      formData.append("audio", blob, `${fileId}_learner.webm`);
+
+      try {
+        const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+        if (!res.ok) throw new Error(await res.text());
+
+        learnerPitches.add(fileId);
+        statusMsg.textContent = "Upload successful!";
+        statusMsg.style.color = "green";
+        document.getElementById("recordedPlayer").src = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
+
+        loadAndPlotFile(fileId);
+
+        // NEW: fetch evaluation and update feedback and session history
+        await fetchAndApplyFeedback(fileId);
+
+      } catch (err) {
+        statusMsg.textContent = "Upload failed: " + err.message;
+        statusMsg.style.color = "red";
+      }
+    };
+
+    // initialize dropdowns and load default sentence on page load  
+    window.onload = () => {
+      loadFileOptions();
+      resetRecordingUI();
+      Plotly.newPlot("pitch-plot", [], {
+        title: "Pitch Contour: (waiting...)",
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Pitch (Hz)", range: [0, 400] }
+      });
+    };
+  </script>
+</body>
+</html>
