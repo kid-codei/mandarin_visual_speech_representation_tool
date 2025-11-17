@@ -467,7 +467,7 @@
         }
         sessionHistory[filename].push({
           timestamp: Date.now(),
-          overallScore: data.overall_score
+          overall: data.overall_score
         });
         updateSessionHistory();
       } catch (err) {
