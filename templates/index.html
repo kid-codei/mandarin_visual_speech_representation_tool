@@ -31,6 +31,23 @@
     button {
       margin-right: 10px;
     }
+    /* NEW: basic styling for feedback + history */
+    #feedback-summary {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    #feedback-details {
+      margin-top: 10px;
+    }
+    #feedback-details span {
+      display: inline-block;
+      margin: 2px 4px;
+    }
+    #session-history {
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #333;
+    }
   </style>
 </head>
 <body>
@@ -66,13 +83,30 @@
 
   <div id="pitch-plot"></div>
 
+  <!-- NEW: feedback + session history UI containers -->
+  <h3>Pronunciation Feedback</h3>
+  <div id="feedback-summary"></div>
+  <div id="feedback-details"></div>
+
+  <h4>Session History (this browser)</h4>
+  <div id="session-history"></div>
+
   <script>
+    // NEW: API base for future deployment (e.g. Render). For local Flask, leave as "".
+    // If you deploy the backend at https://your-backend.onrender.com, set:
+    //   const API_BASE = "https://your-backend.onrender.com";
+    const API_BASE = "";
+
     // globals for current audio file and pitch plot data
     let currentAudio = null;
     let timeSeries = [];
     let pitchSeries = [];
     const learnerPitches = new Set();
     const statusMsg = document.getElementById("statusMessage");
+
+    // simple in-memory session history:
+    // { [filename]: [{ timestamp, overallScore }] }
+    const sessionHistory = {};
 
     // manage recording state, chunks, and timing
     const recorder = {
@@ -109,9 +143,103 @@
         "</div>";
     };
 
+    // NEW: render backend feedback (colors, arrows, scores)
+    const renderFeedback = (filename, feedback) => {
+      const summaryDiv = document.getElementById("feedback-summary");
+      const detailsDiv = document.getElementById("feedback-details");
+
+      if (!feedback || !feedback.segments || feedback.segments.length === 0) {
+        summaryDiv.textContent = "No feedback available yet.";
+        detailsDiv.innerHTML = "";
+        return;
+      }
+
+      summaryDiv.textContent = `Overall score for ${filename}: ${feedback.overall_score.toFixed(1)} / 100`;
+
+      const arrowMap = {
+        up: "↑",
+        down: "↓",
+        ok: "✓",
+        unknown: "?"
+      };
+
+      const segHtml = feedback.segments.map(seg => {
+        const color = seg.color || "gray";
+        const arrow = arrowMap[seg.pitch_direction] || "";
+        const bg = (color === "green")
+          ? "#d4edda"
+          : (color === "yellow")
+          ? "#fff3cd"
+          : (color === "red")
+          ? "#f8d7da"
+          : "#e2e3e5";
+
+        return `
+          <span style="margin-right: 8px; padding: 2px 4px; border-radius: 4px; background: ${bg};">
+            <span style="font-weight:bold;">${seg.text || ""}</span>
+            <span style="margin-left:4px;">${arrow}</span>
+            <span style="margin-left:4px; font-size:0.8em;">${seg.score.toFixed(1)}</span>
+          </span>
+        `;
+      }).join("");
+
+      detailsDiv.innerHTML = segHtml;
+    };
+
+    // NEW: update client-side session history UI
+    const updateSessionHistory = () => {
+      const histDiv = document.getElementById("session-history");
+      const entries = [];
+
+      Object.entries(sessionHistory).forEach(([fname, attempts]) => {
+        attempts.forEach(attempt => {
+          entries.push({
+            filename: fname,
+            timestamp: attempt.timestamp,
+            overall: attempt.overallScore
+          });
+        });
+      });
+
+      if (entries.length === 0) {
+        histDiv.textContent = "No attempts yet this session.";
+        return;
+      }
+
+      entries.sort((a, b) => b.timestamp - a.timestamp);
+
+      histDiv.innerHTML = "<ul>" + entries.map(e =>
+        `<li>${new Date(e.timestamp).toLocaleTimeString()} – ${e.filename}: ${e.overall.toFixed(1)}</li>`
+      ).join("") + "</ul>";
+    };
+
+    // NEW: fetch /api/evaluate/<filename> and apply feedback + history
+    const fetchAndApplyFeedback = async (filename) => {
+      try {
+        const res = await fetch(`${API_BASE}/api/evaluate/${filename}`);
+        if (!res.ok) {
+          console.warn("No feedback yet:", await res.text());
+          return;
+        }
+        const data = await res.json();
+        renderFeedback(filename, data);
+
+        if (!sessionHistory[filename]) {
+          sessionHistory[filename] = [];
+        }
+        sessionHistory[filename].push({
+          timestamp: Date.now(),
+          overallScore: data.overall_score
+        });
+        updateSessionHistory();
+      } catch (err) {
+        console.error("Feedback fetch failed:", err);
+      }
+    };
+
     // get pitch and alignment data for a sentence and updates the plot and text display
     const loadFileOptions = async () => {
-      const res = await fetch("/api/available");
+      const res = await fetch(`${API_BASE}/api/available`);
       const files = await res.json();
       const selector = document.getElementById("fileSelector");
       selector.innerHTML = "";
@@ -128,7 +256,7 @@
     };
 
     const loadAndPlotFile = async (filename) => {
-      const res = await fetch(`/api/pitch/${filename}`);
+      const res = await fetch(`${API_BASE}/api/pitch/${filename}`);
       if (!res.ok) return;
 
       const data = await res.json();
@@ -202,7 +330,7 @@
 
       // try plotting learner pitch if already uploaded
       if (learnerPitches.has(filename)) {
-        const resp = await fetch(`/api/learner_pitch/${filename}`);
+        const resp = await fetch(`${API_BASE}/api/learner_pitch/${filename}`);
         if (resp.ok) {
           const learnerData = await resp.json();
           const lpitch = learnerData.pitch;
@@ -232,7 +360,7 @@
     const playAudio = () => {
       const audio = document.getElementById("audioPlayer");
       if (!currentAudio) return;
-      audio.src = `/audio/${currentAudio}`;
+      audio.src = `${API_BASE}/audio/${currentAudio}`;
       audio.play();
       audio.style.display = "block";
 
@@ -302,15 +430,18 @@
       formData.append("audio", blob, `${fileId}_learner.webm`);
 
       try {
-        const res = await fetch("/upload", { method: "POST", body: formData });
+        const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
         if (!res.ok) throw new Error(await res.text());
 
         learnerPitches.add(fileId);
         statusMsg.textContent = "Upload successful!";
         statusMsg.style.color = "green";
-        document.getElementById("recordedPlayer").src = `/learner_audio/${fileId}_learner.wav`;
+        document.getElementById("recordedPlayer").src = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
 
         loadAndPlotFile(fileId);
+
+        // NEW: fetch evaluation and update feedback and session history
+        await fetchAndApplyFeedback(fileId);
 
       } catch (err) {
         statusMsg.textContent = "Upload failed: " + err.message;
