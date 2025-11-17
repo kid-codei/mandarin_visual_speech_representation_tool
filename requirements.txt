@@ -21,7 +21,6 @@ packaging==25.0
 pillow==11.2.1
 praat-parselmouth==0.4.6
 pydub==0.25.1
-pyaudioop==0.7.2
 pyparsing==3.2.3
 pypinyin==0.54.0
 python-dateutil==2.9.0.post0
