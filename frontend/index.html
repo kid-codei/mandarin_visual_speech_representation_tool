@@ -5,98 +5,332 @@
   <title>Mandarin Visual Speech Tool</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
+    :root {
+      --bg: #f5f5f8;
+      --card-bg: #ffffff;
+      --accent: #2563eb;
+      --accent-soft: #e0ebff;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border-subtle: #e5e7eb;
+      --radius-lg: 12px;
+      --shadow-soft: 0 10px 25px rgba(15, 23, 42, 0.08);
     }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 24px;
+      margin: 0;
+      background: radial-gradient(circle at top left, #e0f2fe, #f5f5f8 40%);
+      color: var(--text-main);
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 20px;
+      box-shadow: var(--shadow-soft);
+      padding: 24px 28px 32px;
+      backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 4px;
+      font-size: 1.9rem;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 20px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    .top-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-right: 6px;
+    }
+
+    select {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: #ffffff;
+      font-size: 0.95rem;
+    }
+
+    #english-sentence {
+      margin-top: 8px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    #text-alignment {
+      margin-top: 18px; /* extra space above characters */
+      font-size: 1.4em;
+    }
+
+    /* extra space between characters & Play Native button */
+    #native-audio-section {
+      margin-top: 26px;
+    }
+
     #pitch-plot {
       width: 100%;
       height: 400px;
-      margin-top: 40px;
-    }
-    #text-alignment {
       margin-top: 20px;
-      font-size: 1.2em;
     }
-    #english-sentence {
-      margin-top: 10px;
-      font-size: 1em;
-      color: #555;
-    }
+
     #recordingIndicator {
-      color: red;
-      font-weight: bold;
+      color: #b91c1c;
+      font-weight: 600;
       margin: 10px 0;
     }
+
     button {
-      margin-right: 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      padding: 7px 14px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f3f4f6;
+      color: #111827;
+      transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
     }
-    /* NEW: basic styling for feedback + history */
+
+    button.primary {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+    }
+
+    button.primary:hover {
+      background: #1d4ed8;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .pill-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      display: inline-flex;
+      padding: 3px 8px;
+      border-radius: 999px;
+      margin-bottom: 4px;
+    }
+
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px 16px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .card-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card-heading h3,
+    .card-heading h4 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .card-heading small {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .audio-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    audio {
+      max-width: 260px;
+    }
+
+    #statusMessage {
+      margin-top: 6px;
+      font-size: 0.9rem;
+    }
+
     #feedback-summary {
-      margin-top: 20px;
-      font-weight: bold;
+      margin-top: 4px;
+      font-weight: 600;
     }
+
     #feedback-details {
-      margin-top: 10px;
+      margin-top: 8px;
+      font-size: 0.9rem;
     }
+
     #feedback-details span {
       display: inline-block;
       margin: 2px 4px;
     }
+
     #session-history {
-      margin-top: 10px;
-      font-size: 0.9em;
-      color: #333;
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: #374151;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    #session-history ul {
+      padding-left: 18px;
+      margin: 4px 0 0;
+    }
+
+    #session-history li {
+      margin-bottom: 2px;
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        padding: 18px 16px 24px;
+      }
+      #pitch-plot {
+        height: 320px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Mandarin Visual Speech Tool</h1>
+  <div class="app">
+    <h1>Mandarin Visual Speech Tool</h1>
+    <p class="subtitle">Compare your pitch contour with a native recording for each sentence.</p>
 
-  <!-- dropdown to choose a sentence; options are populated dynamically from the backend -->
-  <label for="fileSelector">Choose sentence:</label>
-  <select id="fileSelector"></select>
+    <!-- Sentence + display controls -->
+    <div class="top-row">
+      <div>
+        <label for="fileSelector">Sentence:</label>
+        <select id="fileSelector"></select>
+      </div>
 
-  <label for="scriptChoice" style="margin-left: 20px;">Display:</label>
-  <select id="scriptChoice">
-    <option value="pinyin">Pinyin Only</option>
-    <option value="traditional">Traditional</option>
-    <option value="simplified">Simplified</option>
-    <option value="both_trad">Traditional + Pinyin</option>
-    <option value="both_simp">Simplified + Pinyin</option>
-  </select>
+      <div>
+        <label for="scriptChoice">Display:</label>
+        <select id="scriptChoice">
+          <option value="pinyin">Pinyin Only</option>
+          <option value="traditional">Traditional</option>
+          <option value="simplified">Simplified</option>
+          <option value="both_trad">Traditional + Pinyin</option>
+          <option value="both_simp">Simplified + Pinyin</option>
+        </select>
+      </div>
+    </div>
 
-  <div id="english-sentence"></div>
-  <div id="text-alignment"></div>
+    <div id="english-sentence"></div>
+    <div id="text-alignment"></div>
 
-  <button onclick="playAudio()">Play Native Audio</button>
+    <!-- Native audio section -->
+    <section id="native-audio-section">
+      <div class="pill-label">Native reference</div>
+      <div class="card">
+        <div class="card-heading">
+          <h3>Native Recording</h3>
+          <small>Listen and observe the pitch contour.</small>
+        </div>
+        <div class="audio-row">
+          <button class="primary" onclick="playAudio()">▶ Play Native Audio</button>
+          <audio id="audioPlayer" controls style="display:none;"></audio>
+        </div>
+      </div>
+    </section>
 
-  <h3>Record Your Pronunciation</h3>
-  <button id="startBtn">Start</button>
-  <button id="stopBtn" disabled>Stop</button>
-  <button id="uploadBtn" disabled>Upload</button>
-  <div id="recordingIndicator" style="display: none;">Recording... <span id="recordingTimer">0.0</span>s</div>
-  <div id="statusMessage"></div>
+    <!-- Plot -->
+    <div id="pitch-plot"></div>
 
-  <audio id="audioPlayer" controls style="display:none;"></audio>
-  <audio id="recordedPlayer" controls style="display:none;"></audio>
+    <!-- Learner recording + feedback + history -->
+    <div class="flex-row">
+      <!-- Your recording -->
+      <section class="card" style="flex: 1 1 260px; min-width: 260px;">
+        <div class="pill-label">Your recording</div>
+        <div class="card-heading">
+          <h3>Record Your Pronunciation</h3>
+        </div>
+        <div>
+          <button id="startBtn">● Start</button>
+          <button id="stopBtn" disabled>■ Stop</button>
+          <button id="uploadBtn" disabled>⬆ Upload &amp; Analyze</button>
+        </div>
+        <div id="recordingIndicator" style="display: none;">
+          Recording... <span id="recordingTimer">0.0</span>s
+        </div>
+        <div id="statusMessage"></div>
+        <div style="margin-top: 8px;">
+          <strong>Your audio:</strong>
+          <div class="audio-row" style="margin-top:4px;">
+            <audio id="recordedPlayer" controls style="display:none;"></audio>
+          </div>
+        </div>
+      </section>
 
-  <div id="pitch-plot"></div>
+      <!-- Feedback -->
+      <section class="card" style="flex: 1.1 1 280px; min-width: 260px;">
+        <div class="pill-label">Feedback</div>
+        <div class="card-heading">
+          <h3>Pronunciation Feedback</h3>
+        </div>
+        <div id="feedback-summary"></div>
+        <div id="feedback-details"></div>
+      </section>
 
-  <!-- NEW: feedback + session history UI containers -->
-  <h3>Pronunciation Feedback</h3>
-  <div id="feedback-summary"></div>
-  <div id="feedback-details"></div>
-
-  <h4>Session History (this browser)</h4>
-  <div id="session-history"></div>
+      <!-- Session history (filtered by current sentence) -->
+      <section class="card" style="flex: 0.8 1 220px; min-width: 220px;">
+        <div class="pill-label">This session</div>
+        <div class="card-heading">
+          <h4>History for current sentence</h4>
+        </div>
+        <div id="session-history"></div>
+      </section>
+    </div>
+  </div>
 
   <script>
     // NEW: API base for future deployment (e.g. Render). For local Flask, leave as "".
-    // If you deploy the backend at https://your-backend.onrender.com, set:
-    //   const API_BASE = "https://your-backend.onrender.com";
     const API_BASE = "https://mvsrt-backend.onrender.com";
-
 
     // globals for current audio file and pitch plot data
     let currentAudio = null;
@@ -135,16 +369,16 @@
     const createAlignedTextHTML = (chars, pinyin) => {
       const charList = chars.split("");
       const pinyinList = pinyin.split(" ");
-      return "<div style='display: flex; gap: 10px; flex-wrap: wrap;'>" +
+      return "<div style='display: flex; gap: 12px; flex-wrap: wrap;'>" +
         charList.map((ch, i) =>
-          `<div style="text-align:center;">
-            <div>${ch}</div>
-            <div style="font-size: 0.9em; color: gray;">${pinyinList[i] || ""}</div>
+          `<div style="text-align:center; min-width: 26px;">
+            <div style="font-size:1.2em;">${ch}</div>
+            <div style="font-size: 0.8em; color: gray; margin-top:2px;">${pinyinList[i] || ""}</div>
           </div>`).join("") +
         "</div>";
     };
 
-    // NEW: render backend feedback (colors, arrows, scores)
+    // render backend feedback (colors, arrows, scores)
     const renderFeedback = (filename, feedback) => {
       const summaryDiv = document.getElementById("feedback-summary");
       const detailsDiv = document.getElementById("feedback-details");
@@ -155,7 +389,7 @@
         return;
       }
 
-      summaryDiv.textContent = `Overall score for ${filename}: ${feedback.overall_score.toFixed(1)} / 100`;
+      summaryDiv.textContent = `Overall score for "${filename}": ${feedback.overall_score.toFixed(1)} / 100`;
 
       const arrowMap = {
         up: "↑",
@@ -176,7 +410,7 @@
           : "#e2e3e5";
 
         return `
-          <span style="margin-right: 8px; padding: 2px 4px; border-radius: 4px; background: ${bg};">
+          <span style="margin-right: 8px; padding: 2px 5px; border-radius: 999px; background: ${bg};">
             <span style="font-weight:bold;">${seg.text || ""}</span>
             <span style="margin-left:4px;">${arrow}</span>
             <span style="margin-left:4px; font-size:0.8em;">${seg.score.toFixed(1)}</span>
@@ -187,34 +421,37 @@
       detailsDiv.innerHTML = segHtml;
     };
 
-    // NEW: update client-side session history UI
+    // UPDATED: session history only shows attempts for the current sentence
     const updateSessionHistory = () => {
       const histDiv = document.getElementById("session-history");
-      const entries = [];
+      const currentFile = document.getElementById("fileSelector").value;
 
-      Object.entries(sessionHistory).forEach(([fname, attempts]) => {
-        attempts.forEach(attempt => {
-          entries.push({
-            filename: fname,
-            timestamp: attempt.timestamp,
-            overall: attempt.overallScore
-          });
-        });
-      });
-
-      if (entries.length === 0) {
-        histDiv.textContent = "No attempts yet this session.";
+      if (!currentFile) {
+        histDiv.textContent = "Select a sentence to see attempts.";
         return;
       }
 
-      entries.sort((a, b) => b.timestamp - a.timestamp);
+      const attempts = sessionHistory[currentFile] || [];
 
-      histDiv.innerHTML = "<ul>" + entries.map(e =>
-        `<li>${new Date(e.timestamp).toLocaleTimeString()} – ${e.filename}: ${e.overall.toFixed(1)}</li>`
-      ).join("") + "</ul>";
+      if (attempts.length === 0) {
+        histDiv.textContent = "No attempts yet for this sentence.";
+        return;
+      }
+
+      const sorted = [...attempts].sort((a, b) => b.timestamp - a.timestamp);
+
+      histDiv.innerHTML =
+        `<div style="font-size:0.8rem; color:#6b7280; margin-bottom:2px;">
+          Attempts for: <strong>${currentFile}</strong>
+        </div>
+         <ul>` +
+        sorted.map(e =>
+          `<li>${new Date(e.timestamp).toLocaleTimeString()} – score: ${e.overall.toFixed(1)}</li>`
+        ).join("") +
+        "</ul>";
     };
 
-    // NEW: fetch /api/evaluate/<filename> and apply feedback + history
+    // fetch /api/evaluate/<filename> and apply feedback + history
     const fetchAndApplyFeedback = async (filename) => {
       try {
         const res = await fetch(`${API_BASE}/api/evaluate/${filename}`);
@@ -238,7 +475,7 @@
       }
     };
 
-    // get pitch and alignment data for a sentence and updates the plot and text display
+    // load list of sentences
     const loadFileOptions = async () => {
       const res = await fetch(`${API_BASE}/api/available`);
       const files = await res.json();
@@ -252,7 +489,10 @@
       });
       if (files.length > 0) {
         selector.value = files[0];
-        loadAndPlotFile(files[0]);
+        await loadAndPlotFile(files[0]);
+        updateSessionHistory();
+      } else {
+        document.getElementById("session-history").textContent = "No sentences available.";
       }
     };
 
@@ -306,7 +546,7 @@
         x: [0],
         y: [0],
         mode: "markers",
-        marker: { color: "blue", size: 8 },
+        marker: { size: 8 },
         name: "Playback Position"
       };
 
@@ -315,7 +555,13 @@
         xaxis: { title: "Time (s)" },
         yaxis: { title: "Pitch (Hz)", range: [0, Math.max(...pitchSeries) * 1.2] },
         annotations,
-        shapes
+        shapes,
+        legend: {
+          orientation: "h",
+          x: 0,
+          y: 1.15
+        },
+        margin: { t: 60, r: 20, l: 55, b: 45 }
       };
 
       Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
@@ -342,7 +588,7 @@
             y: lpitch,
             mode: "lines",
             type: "scatter",
-            line: { color: "green", shape: "spline" },
+            line: { shape: "spline" },
             name: "Learner Pitch"
           };
           Plotly.addTraces("pitch-plot", learnerTrace);
@@ -353,9 +599,11 @@
     document.getElementById("scriptChoice").onchange = () => {
       loadAndPlotFile(document.getElementById("fileSelector").value);
     };
+
     document.getElementById("fileSelector").onchange = () => {
       resetRecordingUI();
       loadAndPlotFile(document.getElementById("fileSelector").value);
+      updateSessionHistory(); // refresh history for new sentence
     };
 
     const playAudio = () => {
@@ -376,7 +624,7 @@
       requestAnimationFrame(updateDot);
     };
 
-    // start microphone recording and updates recording UI
+    // start microphone recording and update recording UI
     document.getElementById("startBtn").onclick = async () => {
       try {
         recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -422,7 +670,7 @@
       }
     };
 
-    // upload learner recording to backend and triggers learner pitch replot
+    // upload learner recording to backend and trigger learner pitch replot
     document.getElementById("uploadBtn").onclick = async () => {
       statusMsg.textContent = "";
       const fileId = document.getElementById("fileSelector").value;
@@ -439,9 +687,7 @@
         statusMsg.style.color = "green";
         document.getElementById("recordedPlayer").src = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
 
-        loadAndPlotFile(fileId);
-
-        // NEW: fetch evaluation and update feedback and session history
+        await loadAndPlotFile(fileId);
         await fetchAndApplyFeedback(fileId);
 
       } catch (err) {
@@ -450,7 +696,7 @@
       }
     };
 
-    // initialize dropdowns and load default sentence on page load  
+    // initialize dropdowns and load default sentence on page load
     window.onload = () => {
       loadFileOptions();
       resetRecordingUI();
@@ -459,6 +705,7 @@
         xaxis: { title: "Time (s)" },
         yaxis: { title: "Pitch (Hz)", range: [0, 400] }
       });
+      document.getElementById("session-history").textContent = "No attempts yet for this sentence.";
     };
   </script>
 </body>
