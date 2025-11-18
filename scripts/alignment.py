@@ -100,116 +100,281 @@ def _score_pair(native: List[float], learner: List[float]) -> Tuple[float, str]:
 
     return float(score), direction
 
-
-def evaluate_pronunciation(base_id: str, learner_audio_path: str) -> Dict:
+def _color_for_score(score, mode="normal"):
     """
-    Evaluate learner pronunciation for a given sentence.
-
-    Parameters
-    ----------
-    base_id : str
-        Sentence/audio ID, e.g. 'm1' or 'f3'. Must match the prefix of the
-        aligned_pitch JSON: `<base_id>_aligned_pitch.json`.
-    learner_audio_path : str
-        Path to the learner's WAV recording, e.g. `static/learner_audio/m1_learner.wav`.
-
-    Returns
-    -------
-    dict
-        {
-          "overall_score": float,
-          "segments": [
-            {
-              "index": int,
-              "text": str,
-              "start": float,
-              "end": float,
-              "score": float,
-              "color": "green|yellow|red",
-              "pitch_direction": "up|down|ok|unknown",
-            }, ...
-          ]
-        }
+    Map a per-segment score to a color.
+    Thresholds are mode-dependent.
     """
-    align_path = os.path.join(ALIGN_DIR, f"{base_id}_aligned_pitch.json")
-    if not os.path.exists(align_path):
-        raise FileNotFoundError(f"Aligned pitch file not found: {align_path}")
+    if mode == "lenient":
+        green_thr = 70
+        yellow_thr = 50
+    elif mode == "strict":
+        green_thr = 85
+        yellow_thr = 65
+    else:  # normal
+        green_thr = 80
+        yellow_thr = 60
 
-    if not os.path.exists(learner_audio_path):
-        raise FileNotFoundError(f"Learner audio not found: {learner_audio_path}")
+    if score >= green_thr:
+        return "green"
+    elif score >= yellow_thr:
+        return "yellow"
+    else:
+        return "red"
 
-    with open(align_path, "r", encoding="utf-8") as f:
-        alignment = json.load(f)
 
-    learner_series, learner_duration = _extract_pitch_series(learner_audio_path)
-    if len(learner_series) == 0 or learner_duration <= 0:
-        raise RuntimeError("Could not extract pitch from learner audio")
+def _segment_score(native_curve, learner_curve, mode="normal"):
+    """
+    Compute a score [0,100] for one character/segment based on
+    shape/direction and magnitude. This is just a template.
+    Plug in your own DTW/spacing metrics if you already have them.
+    """
 
-    time_step = learner_duration / len(learner_series)
+    # Basic sanity
+    if len(native_curve) == 0 or len(learner_curve) == 0:
+        return 0.0, "unknown"
 
-    segment_results = []
-    scores = []
+    native = np.array(native_curve, dtype=float)
+    learner = np.array(learner_curve, dtype=float)
 
-    for idx, seg in enumerate(alignment):
-        start = float(seg.get("start", 0.0))
-        end = float(seg.get("end", 0.0))
-        text = seg.get("text", "")
+    # Filter NaNs / nulls
+    mask = ~np.isnan(native) & ~np.isnan(learner)
+    if mask.sum() < 3:
+        return 0.0, "unknown"
 
-        native = seg.get("pitch_segment", []) or []
-        # ensure native is list of floats
-        native = [float(hz) for hz in native if hz is not None and hz > 0]
+    native = native[mask]
+    learner = learner[mask]
 
-        if end <= start or len(native) < 3:
-            # Not enough information; mark as low confidence
-            seg_result = {
-                "index": idx,
-                "text": text,
-                "start": start,
-                "end": end,
-                "score": 0.0,
-                "color": "red",
-                "pitch_direction": "unknown",
-            }
-            segment_results.append(seg_result)
-            scores.append(0.0)
-            continue
+    # Normalize (z-score) within segment so we compare shape
+    native_z = (native - native.mean()) / (native.std() + 1e-6)
+    learner_z = (learner - learner.mean()) / (learner.std() + 1e-6)
 
-        start_idx = max(0, int(start / time_step))
-        end_idx = min(len(learner_series), int(end / time_step))
+    # --- 1. Direction: rising/falling/flat ---
+    native_delta = native[-1] - native[0]
+    learner_delta = learner[-1] - learner[0]
 
-        learner_slice = [
-            float(hz) for hz in learner_series[start_idx:end_idx]
-            if hz is not None and hz > 0
-        ]
-
-        if len(learner_slice) < 3:
-            score, direction = 0.0, "unknown"
+    def _dir(delta, eps=0.5):
+        if delta > eps:
+            return "up"
+        elif delta < -eps:
+            return "down"
         else:
-            score, direction = _score_pair(native, learner_slice)
+            return "level"
 
-        if score >= 80:
-            color = "green"
-        elif score >= 60:
-            color = "yellow"
-        else:
-            color = "red"
+    native_dir = _dir(native_delta)
+    learner_dir = _dir(learner_delta)
 
-        segment_results.append(
-            {
-                "index": idx,
-                "text": text,
-                "start": start,
-                "end": end,
-                "score": round(score, 1),
-                "color": color,
-                "pitch_direction": direction,
-            }
-        )
-        scores.append(score)
+    # --- 2. Shape similarity (cosine) ---
+    cos_sim = float(
+        np.dot(native_z, learner_z) /
+        (np.linalg.norm(native_z) * np.linalg.norm(learner_z) + 1e-6)
+    )
+    # map [-1,1] -> [0,100]
+    shape_score = 50 * (cos_sim + 1)
 
-    overall = float(np.mean(scores)) if scores else 0.0
+    # --- 3. Magnitude deviation (how far off in semitones) ---
+    mag_diff = float(np.mean(np.abs(native - learner)))
+    # mode-dependent penalty strength
+    if mode == "lenient":
+        penalty_per_semi = 5.0
+        max_penalty = 20.0
+    elif mode == "strict":
+        penalty_per_semi = 10.0
+        max_penalty = 35.0
+    else:
+        penalty_per_semi = 7.5
+        max_penalty = 25.0
+
+    mag_penalty = min(mag_diff * penalty_per_semi, max_penalty)
+
+    # --- 4. Direction correctness boost/penalty ---
+    if native_dir == "level":
+        dir_score = 100.0  # any stable-ish pitch is ok
+    elif native_dir == learner_dir:
+        dir_score = 100.0
+    else:
+        # mismatch is penalized less in lenient mode
+        dir_penalty = 25.0 if mode == "strict" else 15.0
+        dir_score = 100.0 - dir_penalty
+
+    # combine
+    if mode == "lenient":
+        w_shape, w_dir, w_mag = 0.5, 0.3, 0.2
+    elif mode == "strict":
+        w_shape, w_dir, w_mag = 0.6, 0.3, 0.1
+    else:  # normal
+        w_shape, w_dir, w_mag = 0.55, 0.3, 0.15
+
+    base_score = (
+        w_shape * shape_score +
+        w_dir * dir_score -
+        w_mag * mag_penalty
+    )
+
+    base_score = max(0.0, min(100.0, base_score))
+
+    # map direction for UI arrows
+    if learner_dir == "up":
+        pitch_direction = "up"
+    elif learner_dir == "down":
+        pitch_direction = "down"
+    elif learner_dir == "level":
+        pitch_direction = "ok"
+    else:
+        pitch_direction = "unknown"
+
+    return base_score, pitch_direction
+
+
+def evaluate_pronunciation(sentence_id, mode="normal"):
+    """
+    Top-level evaluation function used by the Flask app.
+    Loads native + learner pitch for `sentence_id`,
+    computes per-character scores, and returns JSON-ready dict.
+    """
+
+    # --- load your alignment & pitch here (pseudo-code) ---
+    # alignment = load_alignment_for_sentence(sentence_id)
+    #   -> list of segments: { "text": "你", "native_pitch": [...], "learner_pitch": [...] }
+    alignment = load_alignment_for_sentence(sentence_id)  # your existing function
+
+    segments_out = []
+    segment_scores = []
+
+    for seg in alignment:
+        native_curve = seg.get("native_pitch", [])
+        learner_curve = seg.get("learner_pitch", [])
+
+        score, pitch_direction = _segment_score(native_curve, learner_curve, mode=mode)
+        color = _color_for_score(score, mode=mode)
+
+        segments_out.append({
+            "text": seg.get("text", ""),
+            "score": score,
+            "pitch_direction": pitch_direction,
+            "color": color
+        })
+        segment_scores.append(score)
+
+    overall = float(np.mean(segment_scores)) if segment_scores else 0.0
 
     return {
-        "overall_score": round(overall, 1),
-        "segments": segment_results,
+        "mode": mode,
+        "overall_score": overall,
+        "segments": segments_out
     }
+
+
+
+# def evaluate_pronunciation(base_id: str, learner_audio_path: str) -> Dict:
+#     """
+#     Evaluate learner pronunciation for a given sentence.
+
+#     Parameters
+#     ----------
+#     base_id : str
+#         Sentence/audio ID, e.g. 'm1' or 'f3'. Must match the prefix of the
+#         aligned_pitch JSON: `<base_id>_aligned_pitch.json`.
+#     learner_audio_path : str
+#         Path to the learner's WAV recording, e.g. `static/learner_audio/m1_learner.wav`.
+
+#     Returns
+#     -------
+#     dict
+#         {
+#           "overall_score": float,
+#           "segments": [
+#             {
+#               "index": int,
+#               "text": str,
+#               "start": float,
+#               "end": float,
+#               "score": float,
+#               "color": "green|yellow|red",
+#               "pitch_direction": "up|down|ok|unknown",
+#             }, ...
+#           ]
+#         }
+#     """
+#     align_path = os.path.join(ALIGN_DIR, f"{base_id}_aligned_pitch.json")
+#     if not os.path.exists(align_path):
+#         raise FileNotFoundError(f"Aligned pitch file not found: {align_path}")
+
+#     if not os.path.exists(learner_audio_path):
+#         raise FileNotFoundError(f"Learner audio not found: {learner_audio_path}")
+
+#     with open(align_path, "r", encoding="utf-8") as f:
+#         alignment = json.load(f)
+
+#     learner_series, learner_duration = _extract_pitch_series(learner_audio_path)
+#     if len(learner_series) == 0 or learner_duration <= 0:
+#         raise RuntimeError("Could not extract pitch from learner audio")
+
+#     time_step = learner_duration / len(learner_series)
+
+#     segment_results = []
+#     scores = []
+
+#     for idx, seg in enumerate(alignment):
+#         start = float(seg.get("start", 0.0))
+#         end = float(seg.get("end", 0.0))
+#         text = seg.get("text", "")
+
+#         native = seg.get("pitch_segment", []) or []
+#         # ensure native is list of floats
+#         native = [float(hz) for hz in native if hz is not None and hz > 0]
+
+#         if end <= start or len(native) < 3:
+#             # Not enough information; mark as low confidence
+#             seg_result = {
+#                 "index": idx,
+#                 "text": text,
+#                 "start": start,
+#                 "end": end,
+#                 "score": 0.0,
+#                 "color": "red",
+#                 "pitch_direction": "unknown",
+#             }
+#             segment_results.append(seg_result)
+#             scores.append(0.0)
+#             continue
+
+#         start_idx = max(0, int(start / time_step))
+#         end_idx = min(len(learner_series), int(end / time_step))
+
+#         learner_slice = [
+#             float(hz) for hz in learner_series[start_idx:end_idx]
+#             if hz is not None and hz > 0
+#         ]
+
+#         if len(learner_slice) < 3:
+#             score, direction = 0.0, "unknown"
+#         else:
+#             score, direction = _score_pair(native, learner_slice)
+
+#         if score >= 80:
+#             color = "green"
+#         elif score >= 60:
+#             color = "yellow"
+#         else:
+#             color = "red"
+
+#         segment_results.append(
+#             {
+#                 "index": idx,
+#                 "text": text,
+#                 "start": start,
+#                 "end": end,
+#                 "score": round(score, 1),
+#                 "color": color,
+#                 "pitch_direction": direction,
+#             }
+#         )
+#         scores.append(score)
+
+#     overall = float(np.mean(scores)) if scores else 0.0
+
+#     return {
+#         "overall_score": round(overall, 1),
+#         "segments": segment_results,
+#     }

@@ -210,41 +210,26 @@ def get_learner_pitch(filename: str):
 # ---------------------------
 # Pronunciation evaluation
 # ---------------------------
-@app.route("/api/evaluate/<filename>")
-def evaluate(filename: str):
-    """Evaluate learner pronunciation for a given sentence.
-
-    This assumes a learner WAV exists at:
-      static/learner_audio/<filename>_learner.wav
-
-    Response:
-      {
-        "overall_score": 78.5,
-        "segments": [
-          {
-            "index": 0,
-            "text": "你",
-            "start": 0.12,
-            "end": 0.53,
-            "score": 82.1,
-            "color": "green",
-            "pitch_direction": "up"
-          },
-          ...
-        ]
-      }
+# @app.route("/api/evaluate/<filename>")
+@app.route("/api/evaluate/<sentence_id>")
+def evaluate(sentence_id):
     """
+    Evaluate pronunciation for a given sentence.
+
+    Optional query parameter:
+      mode = "normal" (default), "lenient", or "strict"
+    """
+    mode = request.args.get("mode", "normal")  # <-- NEW
+
     try:
-        learner_path = os.path.join(
-            "static", "learner_audio", f"{filename}_learner.wav"
-        )
-        result = evaluate_pronunciation(filename, learner_path)
+        result = evaluate_pronunciation(sentence_id, mode=mode)  # <-- pass along
         return jsonify(result)
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Evaluation failed: {str(e)}"}), 500
+
 
 
 if __name__ == "__main__":

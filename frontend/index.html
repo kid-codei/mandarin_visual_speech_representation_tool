@@ -295,6 +295,16 @@
           <button id="stopBtn" disabled>■ Stop</button>
           <button id="uploadBtn" disabled>⬆ Upload &amp; Analyze</button>
         </div>
+        <div style="margin-top: 10px;">
+          <label for="scoringMode" style="font-size:0.85rem; color: var(--text-muted); margin-right:4px;">
+            Scoring mode:
+          </label>
+          <select id="scoringMode" style="font-size:0.85rem; padding:3px 6px;">
+            <option value="normal">Normal</option>
+            <option value="lenient">Beginner (more forgiving)</option>
+            <option value="strict">Strict</option>
+          </select>
+        </div>
         <div id="recordingIndicator" style="display: none;">
           Recording... <span id="recordingTimer">0.0</span>s
         </div>
@@ -315,6 +325,46 @@
         </div>
         <div id="feedback-summary"></div>
         <div id="feedback-details"></div>
+        <div id="feedback-legend"
+            style="margin-top:10px; font-size:0.82rem; color: var(--text-muted);">
+          <strong>Legend</strong>
+          <div style="margin-top:4px;">
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#d4edda; margin-right:4px;">
+                Green
+              </span>
+              Good tonal match to the native speaker.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#fff3cd; margin-right:4px;">
+                Yellow
+              </span>
+              Close, but could be smoother or more accurate.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#f8d7da; margin-right:4px;">
+                Red
+              </span>
+              Pitch shape/direction is far from the native target.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">↑</span>
+              You should raise your pitch more overall.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">↓</span>
+              You should lower your pitch more overall.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">✓</span>
+              Tonal direction is correct.
+            </div>
+            <div>
+              <span style="font-weight:bold; margin-right:4px;">?</span>
+              Pitch unclear (unvoiced, noise, or alignment issue).
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Session history (filtered by current sentence) -->
@@ -333,6 +383,36 @@
     //  API base configuration
     // ===========================
     const API_BASE = "https://mvsrt-backend.onrender.com";
+
+    const getScoringMode = () =>
+      document.getElementById("scoringMode")
+        ? document.getElementById("scoringMode").value
+        : "normal";
+
+    window.loadPastAttempt = (filename, index) => {
+      const attempts = sessionHistory[filename] || [];
+      const attempt = attempts[index];
+      if (!attempt) return;
+
+      // Restore feedback
+      renderFeedback(filename, attempt.feedback);
+
+      // Restore audio if we stored a URL
+      const player = document.getElementById("recordedPlayer");
+      if (attempt.audioUrl) {
+        player.src = attempt.audioUrl;
+        player.style.display = "block";
+      }
+
+      // Optionally: update scoring mode dropdown to match that attempt
+      const scoringSelect = document.getElementById("scoringMode");
+      if (scoringSelect) {
+        scoringSelect.value = attempt.mode || "normal";
+      }
+
+      // (Optional) You could also re-add learner pitch, if you decide
+      // to store it in sessionHistory as attempt.pitchData
+    };
 
     const normalizePitchToSemitones = (hzArray) => {
       // Filter out unvoiced / zero values
@@ -409,7 +489,9 @@
         return;
       }
 
-      summaryDiv.textContent = `Overall score for "${filename}": ${feedback.overall_score.toFixed(1)} / 100`;
+      summaryDiv.textContent =
+        `Overall score (${feedback.mode || "normal"} mode) for "${filename}": ` +
+        `${feedback.overall_score.toFixed(1)} / 100`;
 
       const arrowMap = {
         up: "↑",
@@ -457,39 +539,35 @@
         return;
       }
 
-      const sorted = [...attempts].sort((a, b) => b.timestamp - a.timestamp);
-
       histDiv.innerHTML =
         `<div style="font-size:0.8rem; color:#6b7280; margin-bottom:2px;">
           Attempts for: <strong>${currentFile}</strong>
         </div>
         <ul>` +
-        sorted.map(e =>
-          `<li>${new Date(e.timestamp).toLocaleTimeString()} – score: ${e.overall.toFixed(1)}</li>`
+        attempts.map((e, idx) =>
+          `<li style="cursor:pointer;"
+              onclick="loadPastAttempt('${currentFile}', ${idx})">
+            ${new Date(e.timestamp).toLocaleTimeString()} – 
+            score: ${e.overall.toFixed(1)} 
+            <span style="color:#6b7280;">(${e.mode})</span>
+          </li>`
         ).join("") +
-        "</ul>";
+        `</ul>`;
     };
 
-    const fetchAndApplyFeedback = async (filename) => {
+    const fetchAndApplyFeedback = async (filename, mode) => {
       try {
-        const res = await fetch(`${API_BASE}/api/evaluate/${filename}`);
+        const res = await fetch(`${API_BASE}/api/evaluate/${filename}?mode=${mode || "normal"}`);
         if (!res.ok) {
           console.warn("No feedback yet:", await res.text());
-          return;
+          return null;
         }
         const data = await res.json();
         renderFeedback(filename, data);
-
-        if (!sessionHistory[filename]) {
-          sessionHistory[filename] = [];
-        }
-        sessionHistory[filename].push({
-          timestamp: Date.now(),
-          overall: data.overall_score
-        });
-        updateSessionHistory();
+        return data;
       } catch (err) {
         console.error("Feedback fetch failed:", err);
+        return null;
       }
     };
 
@@ -822,10 +900,29 @@
         statusMsg.textContent = "Upload successful!";
         statusMsg.style.color = "green";
 
-        document.getElementById("recordedPlayer").src = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
+        const audioUrl = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
+        const player = document.getElementById("recordedPlayer");
+        player.src = audioUrl;
+        player.style.display = "block";
 
         await loadAndPlotFile(fileId);
-        await fetchAndApplyFeedback(fileId);
+
+        const mode = getScoringMode();
+        const feedback = await fetchAndApplyFeedback(fileId, mode);
+
+        if (!feedback) return;
+
+        if (!sessionHistory[fileId]) {
+          sessionHistory[fileId] = [];
+        }
+        sessionHistory[fileId].push({
+          timestamp: Date.now(),
+          overall: feedback.overall_score,
+          mode,
+          feedback,
+          audioUrl
+        });
+        updateSessionHistory();
 
       } catch (err) {
         console.error("Upload failed:", err);
