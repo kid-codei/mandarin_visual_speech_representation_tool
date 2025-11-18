@@ -7,6 +7,7 @@ import parselmouth
 import traceback
 
 from scripts.alignment import evaluate_pronunciation
+from scripts.audio_onset import detect_and_trim
 
 app = Flask(__name__, static_folder="frontend", static_url_path="/static")
 # Enable CORS so a separate Netlify (or other) frontend can call this API.
@@ -104,33 +105,45 @@ def get_audio(filename: str):
 # Learner recordings
 # ---------------------------
 @app.route("/upload", methods=["POST"])
+@app.route("/upload", methods=["POST"])
 def upload_audio():
     """Accept a learner recording uploaded from the browser.
 
-    We accept various containers (webm, mp4, ogg, etc.) and convert to WAV:
-      static/learner_audio/<base>_learner.wav
-    where <base> matches the sentence ID (e.g. 'm1').
+    We expect form-data:
+      - audio: the recorded blob
+      - sentence_id: e.g. "f4", "m1"
+
+    We save as:
+      static/learner_audio/<sentence_id>_learner.wav
+    Then we trim silence using scripts.audio_onset.detect_and_trim.
     """
+    print("\n[upload] ===== New upload request =====")
+    print("[upload] CWD:", os.getcwd())
+
     audio = request.files.get("audio")
+    sentence_id = request.form.get("sentence_id") or request.args.get("sentence_id")
+
+    print("[upload] form sentence_id:", sentence_id)
+    print("[upload] file object:", audio)
+
     if not audio:
         return "No audio uploaded", 400
+    if not sentence_id:
+        return "Missing sentence_id", 400
 
-    # Strip extension first
-    original_name = audio.filename or ""
-    name_no_ext, ext = os.path.splitext(original_name)
-
-    # Strip trailing "_learner" if present (works for .webm, .mp4, .ogg, etc.)
-    if name_no_ext.endswith("_learner"):
-        base = name_no_ext[:-len("_learner")]
-    else:
-        base = name_no_ext  # fallback
+    base = sentence_id.strip()
+    if not base:
+        return "Invalid sentence_id", 400
 
     wav_filename = f"{base}_learner.wav"
     save_dir = os.path.join("static", "learner_audio")
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, wav_filename)
 
-    # Determine a reasonable temp extension from mimetype or filename
+    print("[upload] original_name:", audio.filename)
+    print("[upload] target path:", save_path)
+
+    # Determine temp container extension from mimetype or filename
     mimetype = (audio.mimetype or "").split(";")[0]  # e.g. "audio/webm"
     ext_map = {
         "audio/webm": "webm",
@@ -140,35 +153,46 @@ def upload_audio():
         "audio/mp4": "mp4",
         "audio/wav": "wav",
     }
+    _, ext = os.path.splitext(audio.filename or "")
     input_ext = ext_map.get(mimetype, ext.lstrip(".") or "webm")
 
     temp_path = os.path.join(save_dir, f"temp.{input_ext}")
+    print("[upload] temp_path:", temp_path)
 
     try:
         audio.save(temp_path)
+        print("[upload] saved temp, size:", os.path.getsize(temp_path))
 
-        # If the file is empty, bail early with a clearer error
         if os.path.getsize(temp_path) == 0:
             os.remove(temp_path)
             return "Empty recording uploaded; please try again.", 400
 
-        # Let pydub/ffmpeg auto-detect input format based on file header
+        # Convert to WAV using pydub/ffmpeg
         sound = AudioSegment.from_file(temp_path)
         sound.export(save_path, format="wav")
-
         os.remove(temp_path)
+        print("[upload] exported WAV to:", save_path)
+
+        # 🔹 Trim onset using your scripts/audio_onset.py
+        # Assumed signature: detect_and_trim(input_wav, output_wav) -> (onset_time, output_path)
+        onset_time, trimmed_path = detect_and_trim(
+            save_path,
+            save_path + ".tmp.wav",
+        )
+        os.replace(trimmed_path, save_path)
+        print(f"[upload] trimmed onset={onset_time:.3f}s, final:", save_path)
+        print("[upload] exists after trim?", os.path.exists(save_path))
+
+        return f"Saved {wav_filename}", 200
+
     except Exception as e:
         traceback.print_exc()
-        # Clean up temp file if it exists
         try:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
         except Exception:
             pass
         return f"Audio conversion failed: {str(e)}", 500
-
-    return f"Saved {wav_filename}", 200
-
 
 
 @app.route("/learner_audio/<filename>")
@@ -187,7 +211,9 @@ def get_learner_pitch(filename: str):
     Response:
       {
         "filename": "m1",
-        "pitch": [ ... ]   # Hz values (0 or null for unvoiced)
+        "pitch": [...],      # Hz values or null for unvoiced
+        "time_step": 0.01,   # seconds
+        "start_time": 0.0    # should be ≈ 0 because we trimmed
       }
     """
     audio_path = os.path.join("static", "learner_audio", f"{filename}_learner.wav")
@@ -196,12 +222,26 @@ def get_learner_pitch(filename: str):
 
     try:
         snd = parselmouth.Sound(audio_path)
-        pitch = snd.to_pitch()
-        pitch_values = [
-            pitch.get_value_in_frame(i) if pitch.get_value_in_frame(i) > 0 else None
-            for i in range(pitch.get_number_of_frames())
-        ]
-        return jsonify({"filename": filename, "pitch": pitch_values})
+        pitch_obj = snd.to_pitch(
+            time_step=0.01,
+            pitch_floor=75,
+            pitch_ceiling=500,
+        )
+        pitch_values = pitch_obj.selected_array["frequency"].tolist()
+        dt = pitch_obj.dx
+        start_time = pitch_obj.x1
+
+        # convert zeros to null so frontend can mask unvoiced
+        pitch_values = [v if v > 0 else None for v in pitch_values]
+
+        return jsonify(
+            {
+                "filename": filename,
+                "pitch": pitch_values,
+                "time_step": dt,
+                "start_time": start_time,
+            }
+        )
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Pitch extraction failed: {str(e)}"}), 500

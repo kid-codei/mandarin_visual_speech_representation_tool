@@ -382,7 +382,9 @@
     // ===========================
     //  API base configuration
     // ===========================
-    const API_BASE = "https://mvsrt-backend.onrender.com";
+    // const API_BASE = "https://mvsrt-backend.onrender.com";
+    // const API_BASE = "http://localhost:5001";
+    const API_BASE = window.location.origin;
 
     const getScoringMode = () =>
       document.getElementById("scoringMode")
@@ -888,6 +890,7 @@
 
       const formData = new FormData();
       formData.append("audio", blob, `${fileId}_learner.webm`);
+      formData.append("sentence_id", fileId);  
 
       try {
         const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
