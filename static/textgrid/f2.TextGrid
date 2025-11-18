@@ -38,18 +38,18 @@ item []:
             text = "<unk>" 
         intervals [7]:
             xmin = 1.9 
-            xmax = 2.03 
+            xmax = 1.96 
             text = "<unk>" 
         intervals [8]:
+            xmin = 1.96 
+            xmax = 2.03 
+            text = "<unk>" 
+        intervals [9]:
             xmin = 2.03 
             xmax = 2.14 
             text = "<unk>" 
-        intervals [9]:
-            xmin = 2.14 
-            xmax = 2.23 
-            text = "<unk>" 
         intervals [10]:
-            xmin = 2.23 
+            xmin = 2.14 
             xmax = 2.56 
             text = "<unk>" 
         intervals [11]:
@@ -96,18 +96,18 @@ item []:
             text = "spn" 
         intervals [7]:
             xmin = 1.9 
-            xmax = 2.03 
+            xmax = 1.96 
             text = "spn" 
         intervals [8]:
+            xmin = 1.96 
+            xmax = 2.03 
+            text = "spn" 
+        intervals [9]:
             xmin = 2.03 
             xmax = 2.14 
             text = "spn" 
-        intervals [9]:
-            xmin = 2.14 
-            xmax = 2.23 
-            text = "spn" 
         intervals [10]:
-            xmin = 2.23 
+            xmin = 2.14 
             xmax = 2.56 
             text = "spn" 
         intervals [11]:

@@ -51,6 +51,10 @@ def get_character_labels(basename: str):
 
 
 def load_pitch_and_dt(basename: str):
+    """
+    Load pitch array, time step (dt), and start_time from JSON.
+    Falls back to legacy behavior if JSON is just a list of values.
+    """
     audio_path = os.path.join(AUDIO_DIR, f"{basename}.wav")
     pitch_json_path = os.path.join(PITCH_DIR, f"{basename}_pitch.json")
 
@@ -62,7 +66,7 @@ def load_pitch_and_dt(basename: str):
     with open(pitch_json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # New format
+    # New format: {"pitch": [...], "time_step": 0.01, "start_time": ...}
     if isinstance(data, dict):
         pitch_values = data["pitch"]
         dt = data["time_step"]
@@ -77,7 +81,6 @@ def load_pitch_and_dt(basename: str):
         start_time = 0.0
 
     return pitch_values, dt, start_time
-
 
 
 def align_pitch_to_textgrid(basename: str, tier_name: str = "words"):
@@ -97,7 +100,7 @@ def align_pitch_to_textgrid(basename: str, tier_name: str = "words"):
     C = len(char_labels)
     if C == 0:
         print(f"[warn] No character labels for {basename}, falling back to raw MFA intervals.")
-        # you can keep your old logic here if you like
+        # If you want a fallback behavior, you could implement it here.
         return
 
     tg = TextGrid.fromFile(tg_path)
@@ -163,10 +166,10 @@ def align_pitch_to_textgrid(basename: str, tier_name: str = "words"):
 
         aligned_segments.append(
             {
-                "text": label,   # <-- actual character
+                "text": label,   # <-- actual character (no <unk>)
                 "start": start_time,
                 "end": end_time,
-                "pitch_segment": pitch_segment,
+                "pitch_segment": list(map(float, pitch_segment)),
             }
         )
 
@@ -178,6 +181,7 @@ def align_pitch_to_textgrid(basename: str, tier_name: str = "words"):
         f"[aligned] {out_path} "
         f"({len(aligned_segments)} segments for {C} characters, from {N} MFA intervals)"
     )
+
 
 def run_batch(tier_name: str = "words"):
     for fname in os.listdir(TEXTGRID_DIR):

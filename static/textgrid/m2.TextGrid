@@ -14,10 +14,10 @@ item []:
         intervals: size = 11 
         intervals [1]:
             xmin = 0.0 
-            xmax = 0.87 
+            xmax = 0.86 
             text = "" 
         intervals [2]:
-            xmin = 0.87 
+            xmin = 0.86 
             xmax = 1.0 
             text = "<unk>" 
         intervals [3]:
@@ -38,10 +38,10 @@ item []:
             text = "<unk>" 
         intervals [7]:
             xmin = 1.67 
-            xmax = 1.88 
+            xmax = 1.9 
             text = "<unk>" 
         intervals [8]:
-            xmin = 1.88 
+            xmin = 1.9 
             xmax = 1.98 
             text = "<unk>" 
         intervals [9]:
@@ -64,10 +64,10 @@ item []:
         intervals: size = 11 
         intervals [1]:
             xmin = 0.0 
-            xmax = 0.87 
+            xmax = 0.86 
             text = "" 
         intervals [2]:
-            xmin = 0.87 
+            xmin = 0.86 
             xmax = 1.0 
             text = "spn" 
         intervals [3]:
@@ -88,10 +88,10 @@ item []:
             text = "spn" 
         intervals [7]:
             xmin = 1.67 
-            xmax = 1.88 
+            xmax = 1.9 
             text = "spn" 
         intervals [8]:
-            xmin = 1.88 
+            xmin = 1.9 
             xmax = 1.98 
             text = "spn" 
         intervals [9]:

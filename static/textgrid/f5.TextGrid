@@ -46,10 +46,10 @@ item []:
             text = "<unk>" 
         intervals [9]:
             xmin = 2.16 
-            xmax = 2.4 
+            xmax = 2.43 
             text = "<unk>" 
         intervals [10]:
-            xmin = 2.4 
+            xmin = 2.43 
             xmax = 3.435437 
             text = "" 
     item [2]:
@@ -92,9 +92,9 @@ item []:
             text = "spn" 
         intervals [9]:
             xmin = 2.16 
-            xmax = 2.4 
+            xmax = 2.43 
             text = "spn" 
         intervals [10]:
-            xmin = 2.4 
+            xmin = 2.43 
             xmax = 3.435437 
             text = "" 
