@@ -234,6 +234,34 @@
         height: 320px;
       }
     }
+
+    .feedback-tile {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 4px;
+      padding: 4px 6px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .feedback-label-main {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .feedback-label-sub {
+      font-size: 0.75rem;
+      color: #4b5563;
+      margin-top: 2px;
+    }
+
+    .feedback-score {
+      font-size: 0.75rem;
+      margin-left: 4px;
+    }
+
   </style>
 </head>
 <body>
@@ -401,8 +429,16 @@
     let timeSeries = [];
     let pitchSeries = [];
     let nativeSemitonesGlobal = [];
+
+    // NEW: store current sentence text for feedback labels
+    let currentTradChars = [];
+    let currentSimpChars = [];
+    let currentPinyinList = [];
+
+    const learnerPitches = new Set();
     const statusMsg = document.getElementById("statusMessage");
 
+    // { [filename]: [{ timestamp, overall }] }
     const sessionHistory = {};
 
     const recorder = {
@@ -461,28 +497,57 @@
         unknown: "?"
       };
 
-      const segHtml = feedback.segments.map(seg => {
-        const color = seg.color || "gray";
-        const arrow = arrowMap[seg.pitch_direction] || "";
-        const bg = (color === "green")
-          ? "#d4edda"
-          : (color === "yellow")
-          ? "#fff3cd"
-          : (color === "red")
-          ? "#f8d7da"
-          : "#e2e3e5";
+      const displayMode =
+        (document.getElementById("scriptChoice")?.value) || "traditional";
 
-        return `
-          <span style="margin-right: 8px; padding: 2px 5px; border-radius: 999px; background: ${bg};">
-            <span style="font-weight:bold;">${seg.text || ""}</span>
-            <span style="margin-left:4px;">${arrow}</span>
-            <span style="margin-left:4px; font-size:0.8em;">${seg.score.toFixed(1)}</span>
-          </span>
-        `;
-      }).join("");
+      const labelForIndex = (idx, seg) => {
+        const charTrad = currentTradChars[idx] || "";
+        const charSimp = currentSimpChars[idx] || "";
+        const py = currentPinyinList[idx] || "";
 
-      detailsDiv.innerHTML = segHtml;
-    };
+        switch (displayMode) {
+          case "pinyin":
+            return { main: py, sub: "" };
+          case "traditional":
+            return { main: charTrad || seg.text || "", sub: "" };
+          case "simplified":
+            return { main: charSimp || seg.text || "", sub: "" };
+          case "both_trad":
+            return { main: charTrad || seg.text || "", sub: py };
+          case "both_simp":
+            return { main: charSimp || seg.text || "", sub: py };
+          default:
+            return { main: seg.text || "", sub: py };
+        }
+      };
+
+  const segHtml = feedback.segments.map((seg, idx) => {
+    const color = seg.color || "gray";
+    const arrow = arrowMap[seg.pitch_direction] || "";
+    const bg =
+      color === "green" ? "#d4edda" :
+      color === "yellow" ? "#fff3cd" :
+      color === "red" ? "#f8d7da" :
+      "#e2e3e5";
+
+    const label = labelForIndex(idx, seg);
+
+    return `
+      <div class="feedback-tile" style="background:${bg};">
+        <div class="feedback-label-main">${label.main}</div>
+        ${label.sub
+          ? `<div class="feedback-label-sub">${label.sub}</div>`
+          : ""}
+        <div style="margin-top:4px;">
+          <span>${arrow}</span>
+          <span class="feedback-score">${seg.score.toFixed(1)}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  detailsDiv.innerHTML = segHtml;
+};
 
     const updateSessionHistory = () => {
       const histDiv = document.getElementById("session-history");
@@ -675,6 +740,11 @@
       const simpChars = simplified ? simplified.split("") : [];
       const pinyinList = pinyin ? pinyin.split(" ") : [];
 
+      // store globally for feedback rendering
+      currentTradChars = tradChars;
+      currentSimpChars = simpChars;
+      currentPinyinList = pinyinList;
+
       alignment.forEach((seg, idx) => {
         const { start, end } = seg;
         let labelText = "";
@@ -765,7 +835,17 @@
 
     document.getElementById("scriptChoice").onchange = () => {
       const current = document.getElementById("fileSelector").value;
-      if (current) loadAndPlotFile(current);
+      if (current) {
+        // redraw plot/annotations in the new script
+        loadAndPlotFile(current);
+
+        // re-render the *latest* feedback attempt for this sentence
+        const attempts = sessionHistory[current];
+        if (attempts && attempts.length > 0) {
+          const last = attempts[attempts.length - 1];
+          renderFeedback(current, last.feedback);
+        }
+      }
     };
 
     document.getElementById("fileSelector").onchange = () => {
