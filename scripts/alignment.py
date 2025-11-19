@@ -321,6 +321,103 @@ def load_alignment_for_sentence(sentence_id: str) -> List[Dict]:
 
     return alignment_out
 
+def _compute_full_native_series(alignment):
+    """
+    Concatenate native pitch segments across the whole sentence
+    into a single 1D numpy array (Hz).
+
+    Tries `native_pitch` first, then `pitch_segment`.
+    """
+    all_vals = []
+    for seg in alignment:
+        curve = seg.get("native_pitch")
+        if not curve:
+            curve = seg.get("pitch_segment")
+        if not curve:
+            continue
+        all_vals.extend([float(x) for x in curve])
+    return np.asarray(all_vals, dtype=float)
+
+def _extract_full_learner_series(sentence_id, time_step=0.01, floor=75, ceiling=500):
+    """
+    Extract full-sentence learner pitch from static/learner_audio/<id>_learner.wav.
+
+    Returns a 1D numpy array of Hz with np.nan for unvoiced.
+    """
+    wav_path = os.path.join(LEARNER_AUDIO_DIR, f"{sentence_id}_learner.wav")
+    if not os.path.exists(wav_path):
+        raise FileNotFoundError(f"Learner audio not found for {sentence_id}: {wav_path}")
+
+    snd = parselmouth.Sound(wav_path)
+    pitch_obj = snd.to_pitch(time_step=time_step, pitch_floor=floor, pitch_ceiling=ceiling)
+    freqs = pitch_obj.selected_array["frequency"]
+    series = np.array([f if f > 0 else np.nan for f in freqs], dtype=float)
+    return series
+
+def _prepare_for_dtw(series: np.ndarray):
+    """
+    Convert Hz array to a z-normalized contour for DTW.
+
+    - Ignores np.nan and non-positive values as unvoiced.
+    - Returns an array of same length, with unvoiced set to 0.
+    """
+    series = np.asarray(series, dtype=float)
+    mask = ~np.isnan(series) & (series > 0)
+    if not np.any(mask):
+        return None
+
+    voiced = series[mask]
+    mean = voiced.mean()
+    std = voiced.std()
+    if std < 1e-6:
+        std = 1e-6
+
+    z = np.zeros_like(series)
+    z[mask] = (series[mask] - mean) / std
+    # unvoiced stays at 0
+    return z
+
+def _dtw_warp_full_sentence(native_series: np.ndarray, learner_series: np.ndarray) -> np.ndarray:
+    """
+    Use DTW to warp the learner pitch contour onto the native timeline.
+
+    Both inputs are 1D Hz arrays. Returns a 1D array of length len(native_series),
+    where each native frame is assigned an averaged learner Hz value along the DTW path.
+    """
+    native_series = np.asarray(native_series, dtype=float)
+    learner_series = np.asarray(learner_series, dtype=float)
+
+    if native_series.size == 0 or learner_series.size == 0:
+        return np.full_like(native_series, np.nan)
+
+    native_z = _prepare_for_dtw(native_series)
+    learner_z = _prepare_for_dtw(learner_series)
+    if native_z is None or learner_z is None:
+        return np.full_like(native_series, np.nan)
+
+    # librosa expects shape = (features, time)
+    X = native_z.reshape(1, -1)
+    Y = learner_z.reshape(1, -1)
+
+    _, wp = librosa.sequence.dtw(X=X, Y=Y, metric="euclidean")
+    wp = wp[::-1]  # path from start to end
+
+    warped = np.full(native_series.shape, np.nan, dtype=float)
+    counts = np.zeros(native_series.shape, dtype=int)
+
+    for i, j in wp:
+        if 0 <= i < len(native_series) and 0 <= j < len(learner_series):
+            if np.isnan(warped[i]):
+                warped[i] = learner_series[j]
+            else:
+                warped[i] += learner_series[j]
+            counts[i] += 1
+
+    mask = counts > 0
+    warped[mask] = warped[mask] / counts[mask]
+
+    return warped
+
 
 def evaluate_pronunciation(sentence_id, mode="normal"):
     """
@@ -332,26 +429,42 @@ def evaluate_pronunciation(sentence_id, mode="normal"):
     segment_scores = []
 
     for seg in alignment:
-        native_curve = seg.get("native_pitch", [])
+        native_curve = seg.get("native_pitch") or seg.get("pitch_segment") or []
         learner_curve = seg.get("learner_pitch", [])
 
         score, pitch_direction = _segment_score(native_curve, learner_curve, mode=mode)
         color = _color_for_score(score, mode=mode)
 
-        segments_out.append(
-            {
-                "text": seg.get("text", ""),
-                "score": score,
-                "pitch_direction": pitch_direction,
-                "color": color,
-            }
-        )
+        segments_out.append({
+            "text": seg.get("text", ""),
+            "score": score,
+            "pitch_direction": pitch_direction,
+            "color": color,
+        })
         segment_scores.append(score)
 
     overall = float(np.mean(segment_scores)) if segment_scores else 0.0
+
+    # --- Full-sentence DTW alignment for visualization ---
+    try:
+        native_full = _compute_full_native_series(alignment)
+        learner_full = _extract_full_learner_series(sentence_id)
+        dtw_aligned = _dtw_warp_full_sentence(native_full, learner_full)
+
+        # Convert NaNs to 0.0 for JSON; JS treats 0 as unvoiced.
+        dtw_aligned_list = [
+            float(x) if not np.isnan(x) else 0.0
+            for x in dtw_aligned
+        ]
+    except Exception as e:
+        # Fail soft: still return feedback, just no DTW overlay
+        print(f"[DTW] Failed for {sentence_id}: {e}")
+        dtw_aligned_list = []
 
     return {
         "mode": mode,
         "overall_score": overall,
         "segments": segments_out,
+        "dtw_aligned_learner_pitch": dtw_aligned_list,
     }
+

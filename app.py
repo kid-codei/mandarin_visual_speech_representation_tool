@@ -206,45 +206,49 @@ def serve_learner_audio(filename: str):
 
 @app.route("/api/learner_pitch/<filename>")
 def get_learner_pitch(filename: str):
-    """Return raw learner pitch contour for plotting.
+    """Return raw learner pitch contour + timing for plotting.
 
     Response:
       {
-        "filename": "m1",
-        "pitch": [...],      # Hz values or null for unvoiced
-        "time_step": 0.01,   # seconds
-        "start_time": 0.0    # should be ≈ 0 because we trimmed
+        "filename": "f4",
+        "pitch": [...],        # Hz (0 or null for unvoiced)
+        "time_step": 0.01,     # seconds between frames
+        "start_time": 0.0      # time of first frame in seconds
       }
     """
     audio_path = os.path.join("static", "learner_audio", f"{filename}_learner.wav")
     if not os.path.exists(audio_path):
-        return jsonify({"error": "Learner audio not found"}), 404
+        return jsonify({"error": f"Learner audio not found for {filename}: {audio_path}"}), 404
 
     try:
         snd = parselmouth.Sound(audio_path)
+
+        # Use same settings as process_audio.py
         pitch_obj = snd.to_pitch(
             time_step=0.01,
             pitch_floor=75,
             pitch_ceiling=500,
         )
-        pitch_values = pitch_obj.selected_array["frequency"].tolist()
+
+        freqs = pitch_obj.selected_array["frequency"].tolist()
         dt = pitch_obj.dx
         start_time = pitch_obj.x1
 
-        # convert zeros to null so frontend can mask unvoiced
-        pitch_values = [v if v > 0 else None for v in pitch_values]
+        # For plotting we can keep 0.0 for unvoiced or use null; your
+        # normalizePitchToSemitones already treats 0/null as unvoiced.
+        pitch_values = [f if f > 0 else 0.0 for f in freqs]
 
-        return jsonify(
-            {
-                "filename": filename,
-                "pitch": pitch_values,
-                "time_step": dt,
-                "start_time": start_time,
-            }
-        )
+        return jsonify({
+            "filename": filename,
+            "pitch": pitch_values,
+            "time_step": dt,
+            "start_time": start_time,
+        })
+
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Pitch extraction failed: {str(e)}"}), 500
+
 
 
 # ---------------------------

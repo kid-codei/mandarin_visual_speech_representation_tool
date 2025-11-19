@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mandarin Visual Speech Represetation Tool</title>
+  <title>Mandarin Visual Speech Representation Tool</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     :root {
@@ -77,11 +77,10 @@
     }
 
     #text-alignment {
-      margin-top: 18px; /* extra space above characters */
+      margin-top: 18px;
       font-size: 1.4em;
     }
 
-    /* extra space between characters & Play Native button */
     #native-audio-section {
       margin-top: 26px;
     }
@@ -242,7 +241,6 @@
     <h1>Mandarin Visual Speech Representation Tool</h1>
     <p class="subtitle">Compare your pitch contour with a native recording for each sentence.</p>
 
-    <!-- Sentence + display controls -->
     <div class="top-row">
       <div>
         <label for="fileSelector">Sentence:</label>
@@ -264,7 +262,6 @@
     <div id="english-sentence"></div>
     <div id="text-alignment"></div>
 
-    <!-- Native audio section -->
     <section id="native-audio-section">
       <div class="pill-label">Native reference</div>
       <div class="card">
@@ -279,12 +276,9 @@
       </div>
     </section>
 
-    <!-- Plot -->
     <div id="pitch-plot"></div>
 
-    <!-- Learner recording + feedback + history -->
     <div class="flex-row">
-      <!-- Your recording -->
       <section class="card" style="flex: 1 1 260px; min-width: 260px;">
         <div class="pill-label">Your recording</div>
         <div class="card-heading">
@@ -317,7 +311,6 @@
         </div>
       </section>
 
-      <!-- Feedback -->
       <section class="card" style="flex: 1.1 1 280px; min-width: 260px;">
         <div class="pill-label">Feedback</div>
         <div class="card-heading">
@@ -326,7 +319,7 @@
         <div id="feedback-summary"></div>
         <div id="feedback-details"></div>
         <div id="feedback-legend"
-            style="margin-top:10px; font-size:0.82rem; color: var(--text-muted);">
+             style="margin-top:10px; font-size:0.82rem; color: var(--text-muted);">
           <strong>Legend</strong>
           <div style="margin-top:4px;">
             <div style="margin-bottom:4px;">
@@ -367,7 +360,6 @@
         </div>
       </section>
 
-      <!-- Session history (filtered by current sentence) -->
       <section class="card" style="flex: 0.8 1 220px; min-width: 220px;">
         <div class="pill-label">This session</div>
         <div class="card-heading">
@@ -382,53 +374,22 @@
     // ===========================
     //  API base configuration
     // ===========================
-    const API_BASE = "https://mvsrt-backend.onrender.com";
-    // const API_BASE = "http://localhost:5001";
-    // const API_BASE = window.location.origin;
+    const API_BASE = "http://localhost:5001";
+    // For production (Netlify + Render) you can swap this:
+    // const API_BASE = "https://mvsrt-backend.onrender.com";
 
     const getScoringMode = () =>
       document.getElementById("scoringMode")
         ? document.getElementById("scoringMode").value
         : "normal";
 
-    window.loadPastAttempt = (filename, index) => {
-      const attempts = sessionHistory[filename] || [];
-      const attempt = attempts[index];
-      if (!attempt) return;
-
-      // Restore feedback
-      renderFeedback(filename, attempt.feedback);
-
-      // Restore audio if we stored a URL
-      const player = document.getElementById("recordedPlayer");
-      if (attempt.audioUrl) {
-        player.src = attempt.audioUrl;
-        player.style.display = "block";
-      }
-
-      // Optionally: update scoring mode dropdown to match that attempt
-      const scoringSelect = document.getElementById("scoringMode");
-      if (scoringSelect) {
-        scoringSelect.value = attempt.mode || "normal";
-      }
-
-      // (Optional) You could also re-add learner pitch, if you decide
-      // to store it in sessionHistory as attempt.pitchData
-    };
-
     const normalizePitchToSemitones = (hzArray) => {
-      // Filter out unvoiced / zero values
       const voiced = hzArray.filter(v => v && v > 0);
       if (voiced.length === 0) {
-        // No voiced samples: return all null
         return hzArray.map(() => null);
       }
-
-      // Median F0 as reference
       const sorted = [...voiced].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
-
-      // Convert each Hz value to semitones relative to median
       return hzArray.map(v =>
         (v && v > 0)
           ? 12 * Math.log2(v / median)
@@ -440,10 +401,8 @@
     let timeSeries = [];
     let pitchSeries = [];
     let nativeSemitonesGlobal = [];
-    const learnerPitches = new Set();
     const statusMsg = document.getElementById("statusMessage");
 
-    // { [filename]: [{ timestamp, overall }] }
     const sessionHistory = {};
 
     const recorder = {
@@ -557,6 +516,47 @@
         `</ul>`;
     };
 
+    window.loadPastAttempt = (filename, index) => {
+      const attempts = sessionHistory[filename] || [];
+      const attempt = attempts[index];
+      if (!attempt) return;
+
+      renderFeedback(filename, attempt.feedback);
+
+      const player = document.getElementById("recordedPlayer");
+      if (attempt.audioUrl) {
+        player.src = attempt.audioUrl;
+        player.style.display = "block";
+      }
+
+      const scoringSelect = document.getElementById("scoringMode");
+      if (scoringSelect) {
+        scoringSelect.value = attempt.mode || "normal";
+      }
+    };
+
+    const overlayDTWCurve = (dtwPitch) => {
+      if (!dtwPitch || !Array.isArray(dtwPitch) || dtwPitch.length === 0) {
+        return;
+      }
+
+      const N = Math.min(timeSeries.length, dtwPitch.length);
+      if (N === 0) return;
+
+      const yLearner = normalizePitchToSemitones(dtwPitch.slice(0, N));
+
+      const learnerTrace = {
+        x: timeSeries.slice(0, N),
+        y: yLearner,
+        mode: "lines",
+        type: "scatter",
+        line: { shape: "spline" },
+        name: "Learner (DTW-aligned)",
+      };
+
+      Plotly.addTraces("pitch-plot", learnerTrace);
+    };
+
     const fetchAndApplyFeedback = async (filename, mode) => {
       try {
         const res = await fetch(`${API_BASE}/api/evaluate/${filename}?mode=${mode || "normal"}`);
@@ -566,6 +566,10 @@
         }
         const data = await res.json();
         renderFeedback(filename, data);
+
+        // overlay DTW-warped learner contour if present
+        overlayDTWCurve(data.dtw_aligned_learner_pitch);
+
         return data;
       } catch (err) {
         console.error("Feedback fetch failed:", err);
@@ -623,17 +627,15 @@
       const shapes = [];
       const annotations = [];
 
-      // ---------- 1) First pass: build timeSeries, pitchSeries, and shapes ----------
       alignment.forEach(seg => {
         const { start, end, pitch_segment } = seg;
-        const step = (end - start) / pitch_segment.length;
+        const step = (end - start) / Math.max(pitch_segment.length, 1);
 
         pitch_segment.forEach((hz, i) => {
           timeSeries.push(start + i * step);
           pitchSeries.push(hz);
         });
 
-        // vertical boundaries
         shapes.push(
           {
             type: "line",
@@ -658,16 +660,15 @@
         );
       });
 
-      // ---------- 2) Normalize native pitch to semitones & compute y-range ----------
       const nativeSemitones = normalizePitchToSemitones(pitchSeries);
-      nativeSemitonesGlobal = nativeSemitones;  // <-- needed for playback marker
+      nativeSemitonesGlobal = nativeSemitones;
+
       const validNative = nativeSemitones.filter(
         v => v !== null && !Number.isNaN(v)
       );
       const yMin = validNative.length ? Math.min(...validNative) : -5;
       const yMax = validNative.length ? Math.max(...validNative) : 5;
 
-      // ---------- 3) Build annotations based on display mode ----------
       const displayMode = document.getElementById("scriptChoice").value;
 
       const tradChars = traditional ? traditional.split("") : [];
@@ -702,7 +703,7 @@
 
         annotations.push({
           x: (start + end) / 2,
-          y: yMax + 2, // a bit above the highest pitch
+          y: yMax + 2,
           text: labelText,
           showarrow: false,
           font: { size: 16 },
@@ -710,7 +711,6 @@
         });
       });
 
-      // ---------- 4) Native trace + playback marker ----------
       const nativeTrace = {
         x: timeSeries,
         y: nativeSemitones,
@@ -747,7 +747,6 @@
 
       Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
 
-      // ---------- 5) Update the sentence text under the dropdown ----------
       const output = document.getElementById("text-alignment");
       if (displayMode === "pinyin") {
         output.innerHTML = `<div>${pinyin}</div>`;
@@ -761,35 +760,6 @@
         output.innerHTML = createAlignedTextHTML(simplified, pinyin);
       } else {
         output.innerHTML = "";
-      }
-
-      // ---------- 6) If learner pitch exists, overlay it ----------
-      if (learnerPitches.has(filename)) {
-        try {
-          const resp = await fetch(`${API_BASE}/api/learner_pitch/${filename}`);
-          if (resp.ok) {
-            const learnerData = await resp.json();
-            const lpitch = learnerData.pitch;
-            if (lpitch && lpitch.length > 0) {
-              const totalTime = timeSeries[timeSeries.length - 1] || 0;
-              const step = totalTime / lpitch.length;
-              const ltime = lpitch.map((_, i) => i * step);
-              const learnerY = normalizePitchToSemitones(lpitch);
-
-              const learnerTrace = {
-                x: ltime,
-                y: learnerY,
-                mode: "lines",
-                type: "scatter",
-                line: { shape: "spline" },
-                name: "Learner Pitch"
-              };
-              Plotly.addTraces("pitch-plot", learnerTrace);
-            }
-          }
-        } catch (e) {
-          console.error("Failed to load learner pitch:", e);
-        }
       }
     };
 
@@ -821,7 +791,7 @@
           Plotly.restyle(
             "pitch-plot",
             { x: [[timeSeries[i]]], y: [[nativeSemitonesGlobal[i]]] },
-            [1]  // marker trace index
+            [1]
           );
         }
         if (!audio.paused && !audio.ended) requestAnimationFrame(updateDot);
@@ -859,7 +829,7 @@
         }, 100);
 
         recorder.mediaRecorder.start();
-        updateButtons({ isRecording: true });
+        updateButtons({ isRecording: true, hasRecording: false });
 
       } catch (err) {
         statusMsg.textContent = "Microphone access denied or unavailable.";
@@ -890,7 +860,7 @@
 
       const formData = new FormData();
       formData.append("audio", blob, `${fileId}_learner.webm`);
-      formData.append("sentence_id", fileId);  
+      formData.append("sentence_id", fileId);
 
       try {
         const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
@@ -899,7 +869,6 @@
           throw new Error(t || "(no error body)");
         }
 
-        learnerPitches.add(fileId);
         statusMsg.textContent = "Upload successful!";
         statusMsg.style.color = "green";
 
@@ -946,6 +915,5 @@
         "No attempts yet for this sentence.";
     };
   </script>
-
 </body>
 </html>
