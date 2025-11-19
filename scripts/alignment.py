@@ -139,44 +139,83 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
     Compute a score [0,100] for one character/segment based on
     shape/direction and magnitude.
 
-    Handles unequal-length curves by trimming both to the same length.
-    Uses z-normalized shapes and DTW for contour similarity.
+    Behavior:
+      - If native/learner have different lengths, truncate both to the
+        shorter length so NumPy ops are safe.
+      - Treat <= 0 Hz as unvoiced (NaN) before scoring.
+      - If 0 overlapping voiced frames -> 0, "unknown".
+      - If 1–2 overlapping voiced frames -> simple magnitude-based fallback.
+      - If >=3 overlapping voiced frames -> full shape/direction scoring.
     """
+
     # Basic sanity
-    if len(native_curve) == 0 or len(learner_curve) == 0:
+    if not native_curve or not learner_curve:
         return 0.0, "unknown"
 
-    native = np.array(native_curve, dtype=float)
-    learner = np.array(learner_curve, dtype=float)
+    native = np.asarray(native_curve, dtype=float)
+    learner = np.asarray(learner_curve, dtype=float)
 
-    # 🔹 Make sure arrays have the same length before any elementwise ops
+    # --- Make lengths match to avoid broadcasting errors ---
     min_len = min(len(native), len(learner))
-    if min_len < 3:
+    if min_len == 0:
         return 0.0, "unknown"
 
-    native = native[:min_len]
-    learner = learner[:min_len]
+    if len(native) != len(learner):
+        native = native[:min_len]
+        learner = learner[:min_len]
 
-    # Treat non-positive as unvoiced
-    native[native <= 0] = np.nan
-    learner[learner <= 0] = np.nan
+    # --- Treat non-positive / NaN as unvoiced ---
+    native[(native <= 0) | np.isnan(native)] = np.nan
+    learner[(learner <= 0) | np.isnan(learner)] = np.nan
 
-    # Filter out positions where either is NaN
+    # Overlapping voiced frames
     mask = ~np.isnan(native) & ~np.isnan(learner)
+    n_voiced = int(mask.sum())
+
+    # ========== Case 1: 0 voiced frames ==========
+    if n_voiced == 0:
+        return 0.0, "unknown"
+
+    # ========== Case 2: 1–2 voiced frames (fallback) ==========
+    if n_voiced < 3:
+        n_vals = native[mask]
+        l_vals = learner[mask]
+
+        # Mean absolute difference in Hz
+        diff_hz = float(np.mean(np.abs(n_vals - l_vals)))
+
+        # Map diff_hz to [0, 100]:
+        #   0 Hz diff -> 100
+        #   >= 80 Hz diff -> 0   (tweakable)
+        max_diff = 80.0
+        raw = max(0.0, 1.0 - diff_hz / max_diff)
+        score = raw * 100.0
+
+        # Direction hint based on who is higher on average
+        n_mean = float(np.mean(n_vals))
+        l_mean = float(np.mean(l_vals))
+        if n_mean == 0 or l_mean == 0:
+            direction = "unknown"
+        else:
+            d = l_mean - n_mean
+            if d > 20:
+                direction = "down"  # learner too high overall
+            elif d < -20:
+                direction = "up"    # learner too low overall
+            else:
+                direction = "ok"
+
+        return score, direction
+
+    # ========== Case 3: >=3 voiced frames (full logic) ==========
     native = native[mask]
     learner = learner[mask]
 
-    if len(native) < 3 or len(learner) < 3:
-        return 0.0, "unknown"
-
-    # z-normalize within segment (for shape comparison)
+    # Normalize (z-score) within segment so we compare shape
     native_z = (native - native.mean()) / (native.std() + 1e-6)
     learner_z = (learner - learner.mean()) / (learner.std() + 1e-6)
 
-    # --- 1. Shape similarity via DTW (assuming you have _dtw_shape_score) ---
-    shape_score = _dtw_shape_score(native_z, learner_z)
-
-    # --- 2. Direction: rising/falling/flat ---
+    # 1. Direction: rising/falling/flat
     native_delta = native[-1] - native[0]
     learner_delta = learner[-1] - learner[0]
 
@@ -191,8 +230,15 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
     native_dir = _dir(native_delta)
     learner_dir = _dir(learner_delta)
 
-    # --- 3. Magnitude deviation (how far off in semitones) ---
-    # at this point native and learner are same length
+    # 2. Shape similarity (cosine)
+    cos_sim = float(
+        np.dot(native_z, learner_z) /
+        (np.linalg.norm(native_z) * np.linalg.norm(learner_z) + 1e-6)
+    )
+    # map [-1,1] -> [0,100]
+    shape_score = 50 * (cos_sim + 1)
+
+    # 3. Magnitude deviation (how far off in Hz)
     mag_diff = float(np.mean(np.abs(native - learner)))
 
     if mode == "lenient":
@@ -201,22 +247,22 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
     elif mode == "strict":
         penalty_per_semi = 10.0
         max_penalty = 35.0
-    else:  # normal
+    else:
         penalty_per_semi = 7.5
         max_penalty = 25.0
 
     mag_penalty = min(mag_diff * penalty_per_semi, max_penalty)
 
-    # --- 4. Direction correctness boost/penalty ---
+    # 4. Direction correctness boost/penalty
     if native_dir == "level":
-        dir_score = 100.0  # any stable-ish pitch is okay
+        dir_score = 100.0
     elif native_dir == learner_dir:
         dir_score = 100.0
     else:
         dir_penalty = 25.0 if mode == "strict" else 15.0
         dir_score = 100.0 - dir_penalty
 
-    # --- 5. Combine into a final score ---
+    # combine
     if mode == "lenient":
         w_shape, w_dir, w_mag = 0.5, 0.3, 0.2
     elif mode == "strict":
@@ -229,9 +275,10 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
         w_dir * dir_score -
         w_mag * mag_penalty
     )
+
     base_score = max(0.0, min(100.0, base_score))
 
-    # Direction for UI arrows
+    # map direction for UI arrows
     if learner_dir == "up":
         pitch_direction = "up"
     elif learner_dir == "down":
@@ -242,6 +289,7 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
         pitch_direction = "unknown"
 
     return base_score, pitch_direction
+
 
 
 
