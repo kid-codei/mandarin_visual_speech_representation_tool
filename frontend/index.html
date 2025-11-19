@@ -734,6 +734,10 @@
       const yMin = validNative.length ? Math.min(...validNative) : -5;
       const yMax = validNative.length ? Math.max(...validNative) : 5;
 
+      // Ensure the x-axis spans exactly the sentence duration
+      const xMin = timeSeries.length ? timeSeries[0] : 0;
+      const xMax = timeSeries.length ? timeSeries[timeSeries.length - 1] : 1;
+
       const displayMode = document.getElementById("scriptChoice").value;
 
       const tradChars = traditional ? traditional.split("") : [];
@@ -799,21 +803,30 @@
       };
 
       const layout = {
-        title: `Pitch Contour: ${filename}`,
-        xaxis: { title: "Time (s)" },
+        title: {
+          text: `Pitch Contour: ${filename}`,
+          y: 0.96,          // a bit closer to the plot, but below the top
+        },
+        xaxis: {
+          title: "Time (s)",
+          range: [xMin, xMax],   // <--- this is the missing piece
+        },
         yaxis: {
           title: "Relative pitch (semitones)",
-          range: [yMin - 2, yMax + 4]
+          // more breathing room above, slightly more below
+          range: [yMin - 3, yMax + 3],
         },
         annotations,
         shapes,
         legend: {
           orientation: "h",
           x: 0,
-          y: 1.15
+          y: 1.12,
         },
-        margin: { t: 60, r: 20, l: 55, b: 45 }
+        // larger top margin so nothing visually collides with the title
+        margin: { t: 90, r: 20, l: 55, b: 45 },
       };
+
 
       Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
 
