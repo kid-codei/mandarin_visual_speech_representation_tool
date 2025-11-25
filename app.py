@@ -9,7 +9,7 @@ import traceback
 from scripts.alignment import evaluate_pronunciation
 from scripts.audio_onset import detect_and_trim
 
-app = Flask(__name__, static_folder="frontend", static_url_path="/static")
+app = Flask(__name__, static_folder="frontend", static_url_path="")
 # Enable CORS so a separate Netlify (or other) frontend can call this API.
 # In production you can restrict this to your deployed frontend domain.
 CORS(app)
@@ -19,9 +19,14 @@ CORS(app)
 # HTML front-end (local dev)
 # ---------------------------
 @app.route("/")
-def index():
-    """Serve the main HTML page (used for local Flask-based UI)."""
+def intro():
+    return send_from_directory("frontend", "intro.html")
+
+
+@app.route("/index.html")
+def tool():
     return send_from_directory("frontend", "index.html")
+
 
 
 # ---------------------------
