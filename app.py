@@ -20,12 +20,12 @@ CORS(app)
 # ---------------------------
 @app.route("/")
 def intro():
-    return send_from_directory("frontend", "intro.html")
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/index.html")
 def tool():
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend", "tool.html")
 
 
 

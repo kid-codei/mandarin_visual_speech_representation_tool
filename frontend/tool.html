@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mandarin Visual Speech Representation Tool</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f5f8;
+      --card-bg: #ffffff;
+      --accent: #2563eb;
+      --accent-soft: #e0ebff;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --border-subtle: #e5e7eb;
+      --radius-lg: 12px;
+      --shadow-soft: 0 10px 25px rgba(15, 23, 42, 0.08);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 24px;
+      margin: 0;
+      background: radial-gradient(circle at top left, #e0f2fe, #f5f5f8 40%);
+      color: var(--text-main);
+    }
+
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 20px;
+      box-shadow: var(--shadow-soft);
+      padding: 24px 28px 32px;
+      backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 4px;
+      font-size: 1.9rem;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 20px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    .top-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-right: 6px;
+    }
+
+    select {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: #ffffff;
+      font-size: 0.95rem;
+    }
+
+    #english-sentence {
+      margin-top: 8px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    #text-alignment {
+      margin-top: 18px;
+      font-size: 1.4em;
+    }
+
+    #native-audio-section {
+      margin-top: 26px;
+    }
+
+    #pitch-plot {
+      width: 100%;
+      height: 400px;
+      margin-top: 20px;
+    }
+
+    #recordingIndicator {
+      color: #b91c1c;
+      font-weight: 600;
+      margin: 10px 0;
+    }
+
+    button {
+      border-radius: 999px;
+      border: 1px solid transparent;
+      padding: 7px 14px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f3f4f6;
+      color: #111827;
+      transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+    }
+
+    button.primary:hover {
+      background: #1d4ed8;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .pill-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      display: inline-flex;
+      padding: 3px 8px;
+      border-radius: 999px;
+      margin-bottom: 4px;
+    }
+
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px 16px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .card-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .card-heading h3,
+    .card-heading h4 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .card-heading small {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .audio-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    audio {
+      max-width: 260px;
+    }
+
+    #statusMessage {
+      margin-top: 6px;
+      font-size: 0.9rem;
+    }
+
+    #feedback-summary {
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    #feedback-details {
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+
+    #feedback-details span {
+      display: inline-block;
+      margin: 2px 4px;
+    }
+
+    #session-history {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: #374151;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    #session-history ul {
+      padding-left: 18px;
+      margin: 4px 0 0;
+    }
+
+    #session-history li {
+      margin-bottom: 2px;
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        padding: 18px 16px 24px;
+      }
+      #pitch-plot {
+        height: 320px;
+      }
+    }
+
+    .feedback-tile {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 4px;
+      padding: 4px 6px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    .feedback-label-main {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .feedback-label-sub {
+      font-size: 0.75rem;
+      color: #4b5563;
+      margin-top: 2px;
+    }
+
+    .feedback-score {
+      font-size: 0.75rem;
+      margin-left: 4px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Mandarin Visual Speech Representation Tool</h1>
+    <p class="subtitle">Compare your pitch contour with a native recording for each sentence.</p>
+
+    <div class="top-row">
+      <div>
+        <label for="fileSelector">Sentence:</label>
+        <select id="fileSelector"></select>
+      </div>
+
+      <div>
+        <label for="scriptChoice">Display:</label>
+        <select id="scriptChoice">
+          <option value="pinyin">Pinyin Only</option>
+          <option value="traditional">Traditional</option>
+          <option value="simplified">Simplified</option>
+          <option value="both_trad">Traditional + Pinyin</option>
+          <option value="both_simp">Simplified + Pinyin</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="english-sentence"></div>
+    <div id="text-alignment"></div>
+
+    <section id="native-audio-section">
+      <div class="pill-label">Native reference</div>
+      <div class="card">
+        <div class="card-heading">
+          <h3>Native Recording</h3>
+          <small>Listen and observe the pitch contour.</small>
+        </div>
+        <div class="audio-row">
+          <button class="primary" onclick="playAudio()">▶ Play Native Audio</button>
+          <audio id="audioPlayer" controls style="display:none;"></audio>
+        </div>
+      </div>
+    </section>
+
+    <div id="pitch-plot"></div>
+
+    <div class="flex-row">
+      <section class="card" style="flex: 1 1 260px; min-width: 260px;">
+        <div class="pill-label">Your recording</div>
+        <div class="card-heading">
+          <h3>Record Your Pronunciation</h3>
+        </div>
+        <div>
+          <button id="startBtn">● Start</button>
+          <button id="stopBtn" disabled>■ Stop</button>
+          <button id="uploadBtn" disabled>⬆ Upload &amp; Analyze</button>
+        </div>
+        <div style="margin-top: 10px;">
+          <label for="scoringMode" style="font-size:0.85rem; color: var(--text-muted); margin-right:4px;">
+            Scoring mode:
+          </label>
+          <select id="scoringMode" style="font-size:0.85rem; padding:3px 6px;">
+            <option value="normal">Normal</option>
+            <option value="lenient">Beginner (more forgiving)</option>
+            <option value="strict">Strict</option>
+          </select>
+        </div>
+        <div id="recordingIndicator" style="display: none;">
+          Recording... <span id="recordingTimer">0.0</span>s
+        </div>
+        <div id="statusMessage"></div>
+        <div style="margin-top: 8px;">
+          <strong>Your audio:</strong>
+          <div class="audio-row" style="margin-top:4px;">
+            <audio id="recordedPlayer" controls style="display:none;"></audio>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="flex: 1.1 1 280px; min-width: 260px;">
+        <div class="pill-label">Feedback</div>
+        <div class="card-heading">
+          <h3>Pronunciation Feedback</h3>
+        </div>
+        <div id="feedback-summary"></div>
+        <div id="feedback-details"></div>
+        <div id="feedback-legend"
+             style="margin-top:10px; font-size:0.82rem; color: var(--text-muted);">
+          <strong>Legend</strong>
+          <div style="margin-top:4px;">
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#d4edda; margin-right:4px;">
+                Green
+              </span>
+              Good tonal match to the native speaker.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#fff3cd; margin-right:4px;">
+                Yellow
+              </span>
+              Close, but could be smoother or more accurate.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="display:inline-block; padding:2px 6px; border-radius:999px; background:#f8d7da; margin-right:4px;">
+                Red
+              </span>
+              Pitch shape/direction is far from the native target.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">↑</span>
+              You should raise your pitch more overall.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">↓</span>
+              You should lower your pitch more overall.
+            </div>
+            <div style="margin-bottom:4px;">
+              <span style="font-weight:bold; margin-right:4px;">✓</span>
+              Tonal direction is correct.
+            </div>
+            <div>
+              <span style="font-weight:bold; margin-right:4px;">?</span>
+              Pitch unclear (unvoiced, noise, or alignment issue).
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="flex: 0.8 1 220px; min-width: 220px;">
+        <div class="pill-label">This session</div>
+        <div class="card-heading">
+          <h4>History for current sentence</h4>
+        </div>
+        <div id="session-history"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ===========================
+    //  API base configuration
+    // ===========================
+    // const API_BASE = "http://localhost:5001";
+    // For production (Netlify + Render) you can swap this:
+    const API_BASE = "https://mvsrt-backend.onrender.com";
+
+    const getScoringMode = () =>
+      document.getElementById("scoringMode")
+        ? document.getElementById("scoringMode").value
+        : "normal";
+
+    const normalizePitchToSemitones = (hzArray) => {
+      const voiced = hzArray.filter(v => v && v > 0);
+      if (voiced.length === 0) {
+        return hzArray.map(() => null);
+      }
+      const sorted = [...voiced].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      return hzArray.map(v =>
+        (v && v > 0)
+          ? 12 * Math.log2(v / median)
+          : null
+      );
+    };
+
+    let currentAudio = null;
+    let timeSeries = [];
+    let pitchSeries = [];
+    let nativeSemitonesGlobal = [];
+
+    // NEW: store current sentence text for feedback labels
+    let currentTradChars = [];
+    let currentSimpChars = [];
+    let currentPinyinList = [];
+
+    const learnerPitches = new Set();
+    const statusMsg = document.getElementById("statusMessage");
+
+    // { [filename]: [{ timestamp, overall }] }
+    const sessionHistory = {};
+
+    const recorder = {
+      mediaRecorder: null,
+      chunks: [],
+      stream: null,
+      startTime: null,
+      interval: null,
+      lastBlob: null
+    };
+
+    const updateButtons = ({ isRecording, hasRecording }) => {
+      document.getElementById("startBtn").disabled = isRecording;
+      document.getElementById("stopBtn").disabled = !isRecording;
+      document.getElementById("uploadBtn").disabled = !hasRecording;
+    };
+
+    const resetRecordingUI = () => {
+      document.getElementById("recordingIndicator").style.display = "none";
+      document.getElementById("recordingTimer").textContent = "0.0";
+      document.getElementById("recordedPlayer").style.display = "none";
+      recorder.lastBlob = null;
+      updateButtons({ isRecording: false, hasRecording: false });
+    };
+
+    const createAlignedTextHTML = (chars, pinyin) => {
+      const charList = chars.split("");
+      const pinyinList = pinyin.split(" ");
+      return "<div style='display: flex; gap: 12px; flex-wrap: wrap;'>" +
+        charList.map((ch, i) =>
+          `<div style="text-align:center; min-width: 26px;">
+            <div style="font-size:1.2em;">${ch}</div>
+            <div style="font-size: 0.8em; color: gray; margin-top:2px;">${pinyinList[i] || ""}</div>
+          </div>`).join("") +
+        "</div>";
+    };
+
+    const renderFeedback = (filename, feedback) => {
+      const summaryDiv = document.getElementById("feedback-summary");
+      const detailsDiv = document.getElementById("feedback-details");
+
+      if (!feedback || !feedback.segments || feedback.segments.length === 0) {
+        summaryDiv.textContent = "No feedback available yet.";
+        detailsDiv.innerHTML = "";
+        return;
+      }
+
+      summaryDiv.textContent =
+        `Overall score (${feedback.mode || "normal"} mode) for "${filename}": ` +
+        `${feedback.overall_score.toFixed(1)} / 100`;
+
+      const arrowMap = {
+        up: "↑",
+        down: "↓",
+        ok: "✓",
+        unknown: "?"
+      };
+
+      const displayMode =
+        (document.getElementById("scriptChoice")?.value) || "traditional";
+
+      const labelForIndex = (idx, seg) => {
+        const charTrad = currentTradChars[idx] || "";
+        const charSimp = currentSimpChars[idx] || "";
+        const py = currentPinyinList[idx] || "";
+
+        switch (displayMode) {
+          case "pinyin":
+            return { main: py, sub: "" };
+          case "traditional":
+            return { main: charTrad || seg.text || "", sub: "" };
+          case "simplified":
+            return { main: charSimp || seg.text || "", sub: "" };
+          case "both_trad":
+            return { main: charTrad || seg.text || "", sub: py };
+          case "both_simp":
+            return { main: charSimp || seg.text || "", sub: py };
+          default:
+            return { main: seg.text || "", sub: py };
+        }
+      };
+
+  const segHtml = feedback.segments.map((seg, idx) => {
+    const color = seg.color || "gray";
+    const arrow = arrowMap[seg.pitch_direction] || "";
+    const bg =
+      color === "green" ? "#d4edda" :
+      color === "yellow" ? "#fff3cd" :
+      color === "red" ? "#f8d7da" :
+      "#e2e3e5";
+
+    const label = labelForIndex(idx, seg);
+
+    return `
+      <div class="feedback-tile" style="background:${bg};">
+        <div class="feedback-label-main">${label.main}</div>
+        ${label.sub
+          ? `<div class="feedback-label-sub">${label.sub}</div>`
+          : ""}
+        <div style="margin-top:4px;">
+          <span>${arrow}</span>
+          <span class="feedback-score">${seg.score.toFixed(1)}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  detailsDiv.innerHTML = segHtml;
+};
+
+    const updateSessionHistory = () => {
+      const histDiv = document.getElementById("session-history");
+      const currentFile = document.getElementById("fileSelector").value;
+
+      if (!currentFile) {
+        histDiv.textContent = "Select a sentence to see attempts.";
+        return;
+      }
+
+      const attempts = sessionHistory[currentFile] || [];
+
+      if (attempts.length === 0) {
+        histDiv.textContent = "No attempts yet for this sentence.";
+        return;
+      }
+
+      histDiv.innerHTML =
+        `<div style="font-size:0.8rem; color:#6b7280; margin-bottom:2px;">
+          Attempts for: <strong>${currentFile}</strong>
+        </div>
+        <ul>` +
+        attempts.map((e, idx) =>
+          `<li style="cursor:pointer;"
+              onclick="loadPastAttempt('${currentFile}', ${idx})">
+            ${new Date(e.timestamp).toLocaleTimeString()} – 
+            score: ${e.overall.toFixed(1)} 
+            <span style="color:#6b7280;">(${e.mode})</span>
+          </li>`
+        ).join("") +
+        `</ul>`;
+    };
+
+    window.loadPastAttempt = (filename, index) => {
+      const attempts = sessionHistory[filename] || [];
+      const attempt = attempts[index];
+      if (!attempt) return;
+
+      renderFeedback(filename, attempt.feedback);
+
+      const player = document.getElementById("recordedPlayer");
+      if (attempt.audioUrl) {
+        player.src = attempt.audioUrl;
+        player.style.display = "block";
+      }
+
+      const scoringSelect = document.getElementById("scoringMode");
+      if (scoringSelect) {
+        scoringSelect.value = attempt.mode || "normal";
+      }
+    };
+
+    const overlayDTWCurve = (dtwPitch) => {
+      if (!dtwPitch || !Array.isArray(dtwPitch) || dtwPitch.length === 0) {
+        return;
+      }
+
+      const N = Math.min(timeSeries.length, dtwPitch.length);
+      if (N === 0) return;
+
+      const yLearner = normalizePitchToSemitones(dtwPitch.slice(0, N));
+
+      const learnerTrace = {
+        x: timeSeries.slice(0, N),
+        y: yLearner,
+        mode: "lines",
+        type: "scatter",
+        line: { shape: "spline" },
+        name: "Learner (DTW-aligned)",
+      };
+
+      Plotly.addTraces("pitch-plot", learnerTrace);
+    };
+
+    const fetchAndApplyFeedback = async (filename, mode) => {
+      try {
+        const res = await fetch(`${API_BASE}/api/evaluate/${filename}?mode=${mode || "normal"}`);
+        if (!res.ok) {
+          console.warn("No feedback yet:", await res.text());
+          return null;
+        }
+        const data = await res.json();
+        renderFeedback(filename, data);
+
+        // overlay DTW-warped learner contour if present
+        overlayDTWCurve(data.dtw_aligned_learner_pitch);
+
+        return data;
+      } catch (err) {
+        console.error("Feedback fetch failed:", err);
+        return null;
+      }
+    };
+
+    const loadFileOptions = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/available`);
+        if (!res.ok) {
+          console.error("Error loading /api/available:", await res.text());
+          document.getElementById("session-history").textContent =
+            "Failed to load sentences. Check API_BASE or backend.";
+          return;
+        }
+        const files = await res.json();
+        const selector = document.getElementById("fileSelector");
+        selector.innerHTML = "";
+        files.forEach(id => {
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = id;
+          selector.appendChild(opt);
+        });
+        if (files.length > 0) {
+          selector.value = files[0];
+          await loadAndPlotFile(files[0]);
+          updateSessionHistory();
+        } else {
+          document.getElementById("session-history").textContent = "No sentences available.";
+        }
+      } catch (e) {
+        console.error("Failed to load files:", e);
+        document.getElementById("session-history").textContent =
+          "Failed to load sentences (network error).";
+      }
+    };
+
+    const loadAndPlotFile = async (filename) => {
+      const res = await fetch(`${API_BASE}/api/pitch/${filename}`);
+      if (!res.ok) {
+        console.error("Error loading /api/pitch:", await res.text());
+        return;
+      }
+
+      const data = await res.json();
+      currentAudio = data.audio;
+
+      const { alignment, pinyin, traditional, simplified, english } = data;
+      document.getElementById("english-sentence").textContent = english;
+
+      timeSeries = [];
+      pitchSeries = [];
+      const shapes = [];
+      const annotations = [];
+
+      alignment.forEach(seg => {
+        const { start, end, pitch_segment } = seg;
+        const step = (end - start) / Math.max(pitch_segment.length, 1);
+
+        pitch_segment.forEach((hz, i) => {
+          timeSeries.push(start + i * step);
+          pitchSeries.push(hz);
+        });
+
+        shapes.push(
+          {
+            type: "line",
+            x0: start,
+            x1: start,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: { color: "red", width: 1, dash: "dot" }
+          },
+          {
+            type: "line",
+            x0: end,
+            x1: end,
+            y0: 0,
+            y1: 1,
+            xref: "x",
+            yref: "paper",
+            line: { color: "red", width: 1, dash: "dot" }
+          }
+        );
+      });
+
+      const nativeSemitones = normalizePitchToSemitones(pitchSeries);
+      nativeSemitonesGlobal = nativeSemitones;
+
+      const validNative = nativeSemitones.filter(
+        v => v !== null && !Number.isNaN(v)
+      );
+      const yMin = validNative.length ? Math.min(...validNative) : -5;
+      const yMax = validNative.length ? Math.max(...validNative) : 5;
+
+      // Ensure the x-axis spans exactly the sentence duration
+      const xMin = timeSeries.length ? timeSeries[0] : 0;
+      const xMax = timeSeries.length ? timeSeries[timeSeries.length - 1] : 1;
+
+      const displayMode = document.getElementById("scriptChoice").value;
+
+      const tradChars = traditional ? traditional.split("") : [];
+      const simpChars = simplified ? simplified.split("") : [];
+      const pinyinList = pinyin ? pinyin.split(" ") : [];
+
+      // store globally for feedback rendering
+      currentTradChars = tradChars;
+      currentSimpChars = simpChars;
+      currentPinyinList = pinyinList;
+
+      alignment.forEach((seg, idx) => {
+        const { start, end } = seg;
+        let labelText = "";
+
+        switch (displayMode) {
+          case "pinyin":
+            labelText = pinyinList[idx] || "";
+            break;
+          case "traditional":
+            labelText = tradChars[idx] || "";
+            break;
+          case "simplified":
+            labelText = simpChars[idx] || "";
+            break;
+          case "both_trad":
+            labelText =
+              (tradChars[idx] || "") + "<br>" + (pinyinList[idx] || "");
+            break;
+          case "both_simp":
+            labelText =
+              (simpChars[idx] || "") + "<br>" + (pinyinList[idx] || "");
+            break;
+          default:
+            labelText = tradChars[idx] || "";
+        }
+
+        annotations.push({
+          x: (start + end) / 2,
+          y: yMax + 2,
+          text: labelText,
+          showarrow: false,
+          font: { size: 16 },
+          align: "center"
+        });
+      });
+
+      const nativeTrace = {
+        x: timeSeries,
+        y: nativeSemitones,
+        type: "scatter",
+        mode: "lines",
+        line: { shape: "spline" },
+        name: "Native Pitch"
+      };
+
+      const markerTrace = {
+        x: [0],
+        y: [0],
+        mode: "markers",
+        marker: { size: 8 },
+        name: "Playback Position"
+      };
+
+      const layout = {
+        title: {
+          text: `Pitch Contour: ${filename}`,
+          y: 0.96,          // a bit closer to the plot, but below the top
+        },
+        xaxis: {
+          title: "Time (s)",
+          range: [xMin, xMax],   // <--- this is the missing piece
+        },
+        yaxis: {
+          title: "Relative pitch (semitones)",
+          // more breathing room above, slightly more below
+          range: [yMin - 3, yMax + 3],
+        },
+        annotations,
+        shapes,
+        legend: {
+          orientation: "h",
+          x: 0,
+          y: 1.12,
+        },
+        // larger top margin so nothing visually collides with the title
+        margin: { t: 90, r: 20, l: 55, b: 45 },
+      };
+
+
+      Plotly.newPlot("pitch-plot", [nativeTrace, markerTrace], layout);
+
+      const output = document.getElementById("text-alignment");
+      if (displayMode === "pinyin") {
+        output.innerHTML = `<div>${pinyin}</div>`;
+      } else if (displayMode === "traditional") {
+        output.innerHTML = `<div>${traditional}</div>`;
+      } else if (displayMode === "simplified") {
+        output.innerHTML = `<div>${simplified}</div>`;
+      } else if (displayMode === "both_trad") {
+        output.innerHTML = createAlignedTextHTML(traditional, pinyin);
+      } else if (displayMode === "both_simp") {
+        output.innerHTML = createAlignedTextHTML(simplified, pinyin);
+      } else {
+        output.innerHTML = "";
+      }
+    };
+
+    document.getElementById("scriptChoice").onchange = () => {
+      const current = document.getElementById("fileSelector").value;
+      if (current) {
+        // redraw plot/annotations in the new script
+        loadAndPlotFile(current);
+
+        // re-render the *latest* feedback attempt for this sentence
+        const attempts = sessionHistory[current];
+        if (attempts && attempts.length > 0) {
+          const last = attempts[attempts.length - 1];
+          renderFeedback(current, last.feedback);
+        }
+      }
+    };
+
+    document.getElementById("fileSelector").onchange = () => {
+      resetRecordingUI();
+      const current = document.getElementById("fileSelector").value;
+      if (current) {
+        loadAndPlotFile(current);
+        updateSessionHistory();
+      }
+    };
+
+    const playAudio = () => {
+      const audio = document.getElementById("audioPlayer");
+      if (!currentAudio) return;
+      audio.src = `${API_BASE}/audio/${currentAudio}`;
+      audio.play();
+      audio.style.display = "block";
+
+      const updateDot = () => {
+        const t = audio.currentTime;
+        const i = timeSeries.findIndex(x => x >= t);
+        if (i >= 0 && nativeSemitonesGlobal && nativeSemitonesGlobal.length > i) {
+          Plotly.restyle(
+            "pitch-plot",
+            { x: [[timeSeries[i]]], y: [[nativeSemitonesGlobal[i]]] },
+            [1]
+          );
+        }
+        if (!audio.paused && !audio.ended) requestAnimationFrame(updateDot);
+      };
+      requestAnimationFrame(updateDot);
+    };
+
+    document.getElementById("startBtn").onclick = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder.stream = stream;
+        recorder.mediaRecorder = new MediaRecorder(stream);
+        recorder.chunks = [];
+
+        recorder.mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) recorder.chunks.push(e.data);
+        };
+
+        recorder.mediaRecorder.onstop = () => {
+          const blob = new Blob(recorder.chunks, { type: "audio/webm" });
+          recorder.lastBlob = blob;
+
+          const url = URL.createObjectURL(blob);
+          const player = document.getElementById("recordedPlayer");
+          player.src = url;
+          player.style.display = "block";
+          updateButtons({ isRecording: false, hasRecording: true });
+        };
+
+        recorder.startTime = Date.now();
+        document.getElementById("recordingIndicator").style.display = "block";
+        recorder.interval = setInterval(() => {
+          const elapsed = ((Date.now() - recorder.startTime) / 1000).toFixed(1);
+          document.getElementById("recordingTimer").textContent = elapsed;
+        }, 100);
+
+        recorder.mediaRecorder.start();
+        updateButtons({ isRecording: true, hasRecording: false });
+
+      } catch (err) {
+        statusMsg.textContent = "Microphone access denied or unavailable.";
+        statusMsg.style.color = "red";
+      }
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+      try {
+        recorder.mediaRecorder.stop();
+        clearInterval(recorder.interval);
+        document.getElementById("recordingIndicator").style.display = "none";
+      } catch (e) {
+        console.warn("Stop error:", e);
+      }
+    };
+
+    document.getElementById("uploadBtn").onclick = async () => {
+      statusMsg.textContent = "";
+      const fileId = document.getElementById("fileSelector").value;
+
+      const blob = recorder.lastBlob;
+      if (!blob) {
+        statusMsg.textContent = "No recording to upload.";
+        statusMsg.style.color = "red";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("audio", blob, `${fileId}_learner.webm`);
+      formData.append("sentence_id", fileId);
+
+      try {
+        const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || "(no error body)");
+        }
+
+        statusMsg.textContent = "Upload successful!";
+        statusMsg.style.color = "green";
+
+        const audioUrl = `${API_BASE}/learner_audio/${fileId}_learner.wav`;
+        const player = document.getElementById("recordedPlayer");
+        player.src = audioUrl;
+        player.style.display = "block";
+
+        await loadAndPlotFile(fileId);
+
+        const mode = getScoringMode();
+        const feedback = await fetchAndApplyFeedback(fileId, mode);
+
+        if (!feedback) return;
+
+        if (!sessionHistory[fileId]) {
+          sessionHistory[fileId] = [];
+        }
+        sessionHistory[fileId].push({
+          timestamp: Date.now(),
+          overall: feedback.overall_score,
+          mode,
+          feedback,
+          audioUrl
+        });
+        updateSessionHistory();
+
+      } catch (err) {
+        console.error("Upload failed:", err);
+        statusMsg.textContent = "Upload failed: " + err.message;
+        statusMsg.style.color = "red";
+      }
+    };
+
+    window.onload = () => {
+      loadFileOptions();
+      resetRecordingUI();
+      Plotly.newPlot("pitch-plot", [], {
+        title: "Pitch Contour: (waiting...)",
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Relative pitch (semitones)", range: [-12, 12] }
+      });
+      document.getElementById("session-history").textContent =
+        "No attempts yet for this sentence.";
+    };
+  </script>
+</body>
+</html>
