@@ -8,6 +8,7 @@ import traceback
 
 from scripts.alignment import evaluate_pronunciation
 from scripts.audio_onset import detect_and_trim
+from scripts.db_log import log_attempt, get_history
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
 # Enable CORS so a separate Netlify (or other) frontend can call this API.
@@ -270,13 +271,33 @@ def evaluate(sentence_id):
     mode = request.args.get("mode", "normal")  # <-- NEW
 
     try:
-        result = evaluate_pronunciation(sentence_id, mode=mode)  # <-- pass along
+        result = evaluate_pronunciation(sentence_id, mode=mode)
+        try:
+            log_attempt(
+                sentence_id=sentence_id,
+                mode=mode,
+                overall_score=result["overall_score"],
+                segments=result["segments"],
+            )
+        except Exception as log_err:
+            print(f"[db_log] Failed to persist attempt: {log_err}")
         return jsonify(result)
     except FileNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"Evaluation failed: {str(e)}"}), 500
+
+
+@app.route("/api/history/<sentence_id>")
+def history(sentence_id):
+    """Return past attempts for a sentence from the persistent DB."""
+    try:
+        attempts = get_history(sentence_id)
+        return jsonify(attempts)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 

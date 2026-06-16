@@ -181,27 +181,28 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
         n_vals = native[mask]
         l_vals = learner[mask]
 
-        # Mean absolute difference in Hz
-        diff_hz = float(np.mean(np.abs(n_vals - l_vals)))
-
-        # Map diff_hz to [0, 100]:
-        #   0 Hz diff -> 100
-        #   >= 80 Hz diff -> 0   (tweakable)
-        max_diff = 80.0
-        raw = max(0.0, 1.0 - diff_hz / max_diff)
+        # Compare in semitones relative to each speaker's own median
+        n_median = float(np.median(n_vals))
+        l_median = float(np.median(l_vals))
+        if n_median > 0 and l_median > 0:
+            n_semi = 12 * np.log2(n_vals / n_median)
+            l_semi = 12 * np.log2(l_vals / l_median)
+            diff_semi = float(np.mean(np.abs(n_semi - l_semi)))
+            max_diff_semi = 6.0
+            raw = max(0.0, 1.0 - diff_semi / max_diff_semi)
+        else:
+            raw = 0.0
         score = raw * 100.0
 
-        # Direction hint based on who is higher on average
-        n_mean = float(np.mean(n_vals))
-        l_mean = float(np.mean(l_vals))
-        if n_mean == 0 or l_mean == 0:
+        # Advice: if learner's mean pitch is too low, tell them to go up, and vice versa
+        if n_median == 0 or l_median == 0:
             direction = "unknown"
         else:
-            d = l_mean - n_mean
-            if d > 20:
-                direction = "down"  # learner too high overall
-            elif d < -20:
-                direction = "up"    # learner too low overall
+            ratio = l_median / n_median
+            if ratio > 1.15:
+                direction = "down"
+            elif ratio < 0.87:
+                direction = "up"
             else:
                 direction = "ok"
 
@@ -299,12 +300,16 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
 
 def load_alignment_for_sentence(sentence_id: str) -> List[Dict]:
     """
-    Build alignment objects for scoring:
+    Build alignment objects for scoring.
+
+    Uses DTW to warp the learner pitch into native time before slicing
+    into per-character segments, so timing differences between native and
+    learner recordings don't misalign the segment boundaries.
 
     Returns a list of {
       "text": <single character>,
       "native_pitch": [...],
-      "learner_pitch": [...]
+      "learner_pitch": [...]   # DTW-warped into native frame timeline
     }
     """
     # 1) Native aligned segments
@@ -339,27 +344,32 @@ def load_alignment_for_sentence(sentence_id: str) -> List[Dict]:
             f"Learner audio not found for {sentence_id}: {learner_path}"
         )
 
-    snd = parselmouth.Sound(learner_path)
-    pitch_obj = snd.to_pitch(time_step=0.01, pitch_floor=75, pitch_ceiling=500)
-    times = pitch_obj.xs()
-    freqs = pitch_obj.selected_array["frequency"]
+    learner_full = _extract_full_learner_series(sentence_id)
 
+    # 4) Build native full series tracking per-segment frame counts
+    native_frames_per_seg = []
+    native_all_hz = []
+    for seg in native_segments:
+        ps = seg.get("pitch_segment", [])
+        native_frames_per_seg.append(len(ps))
+        native_all_hz.extend([float(x) for x in ps])
+
+    native_full = np.array(native_all_hz, dtype=float)
+
+    # 5) DTW-warp learner into native frame timeline
+    dtw_warped = _dtw_warp_full_sentence(native_full, learner_full)
+
+    # 6) Slice both series by native segment frame boundaries
     alignment_out: List[Dict] = []
+    frame_idx = 0
 
-    for idx, seg in enumerate(native_segments):
-        start = float(seg.get("start", 0.0))
-        end = float(seg.get("end", 0.0))
-
-        native_curve = np.array(seg.get("pitch_segment", []), dtype=float)
+    for idx, (seg, n_frames) in enumerate(zip(native_segments, native_frames_per_seg)):
+        native_curve = native_full[frame_idx : frame_idx + n_frames].copy()
         native_curve[native_curve <= 0] = np.nan
 
-        mask = (times >= start) & (times <= end)
-        if not np.any(mask):
-            learner_curve = np.array([], dtype=float)
-        else:
-            lc = np.array(freqs[mask], dtype=float)
-            lc[lc <= 0] = np.nan
-            learner_curve = lc
+        warped_slice = dtw_warped[frame_idx : frame_idx + n_frames].copy()
+        # NaN stays NaN; any remaining 0.0 from unvoiced warp frames becomes NaN
+        warped_slice[warped_slice == 0.0] = np.nan
 
         text = char_list[idx] if idx < len(char_list) else ""
 
@@ -367,9 +377,11 @@ def load_alignment_for_sentence(sentence_id: str) -> List[Dict]:
             {
                 "text": text,
                 "native_pitch": native_curve.tolist(),
-                "learner_pitch": learner_curve.tolist(),
+                "learner_pitch": warped_slice.tolist(),
             }
         )
+
+        frame_idx += n_frames
 
     return alignment_out
 

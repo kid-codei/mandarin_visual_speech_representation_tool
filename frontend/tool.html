@@ -403,8 +403,34 @@
     //  API base configuration
     // ===========================
     // const API_BASE = "http://localhost:5001";
-    // For production (Netlify + Render) you can swap this:
     const API_BASE = "https://mvsrt-backend.onrender.com";
+
+    // ===========================
+    //  Tone helpers
+    // ===========================
+    const TONE_CHARS = {
+      'ā':1,'á':2,'ǎ':3,'à':4,
+      'ē':1,'é':2,'ě':3,'è':4,
+      'ī':1,'í':2,'ǐ':3,'ì':4,
+      'ō':1,'ó':2,'ǒ':3,'ò':4,
+      'ū':1,'ú':2,'ǔ':3,'ù':4,
+      'ǖ':1,'ǘ':2,'ǚ':3,'ǜ':4,
+    };
+
+    const TONE_MESSAGES = {
+      1: "Tone 1: Stay high and flat throughout.",
+      2: "Tone 2: Rise sharply from mid to high.",
+      3: "Tone 3: Dip low (or just stay low in fast speech).",
+      4: "Tone 4: Fall sharply from high to low.",
+      0: "Neutral tone: Short and light — don't stress it.",
+    };
+
+    function getToneNumber(syllable) {
+      for (const ch of syllable) {
+        if (TONE_CHARS[ch] !== undefined) return TONE_CHARS[ch];
+      }
+      return 0;
+    }
 
     const getScoringMode = () =>
       document.getElementById("scoringMode")
@@ -531,9 +557,14 @@
       "#e2e3e5";
 
     const label = labelForIndex(idx, seg);
+    const py = currentPinyinList[idx] || "";
+    const toneNum = getToneNumber(py);
+    const coachMsg = (color !== "green" && toneNum !== undefined)
+      ? (TONE_MESSAGES[toneNum] || "")
+      : "";
 
     return `
-      <div class="feedback-tile" style="background:${bg};">
+      <div class="feedback-tile" style="background:${bg};" title="${coachMsg}">
         <div class="feedback-label-main">${label.main}</div>
         ${label.sub
           ? `<div class="feedback-label-sub">${label.sub}</div>`
@@ -542,6 +573,9 @@
           <span>${arrow}</span>
           <span class="feedback-score">${seg.score.toFixed(1)}</span>
         </div>
+        ${coachMsg
+          ? `<div style="font-size:0.7rem;color:#374151;margin-top:3px;max-width:90px;text-align:center;line-height:1.2;">${coachMsg}</div>`
+          : ""}
       </div>
     `;
   }).join("");
@@ -549,7 +583,7 @@
   detailsDiv.innerHTML = segHtml;
 };
 
-    const updateSessionHistory = () => {
+    const updateSessionHistory = async () => {
       const histDiv = document.getElementById("session-history");
       const currentFile = document.getElementById("fileSelector").value;
 
@@ -558,26 +592,59 @@
         return;
       }
 
-      const attempts = sessionHistory[currentFile] || [];
+      // In-memory attempts from this browser session
+      const localAttempts = sessionHistory[currentFile] || [];
 
-      if (attempts.length === 0) {
+      // Pull persistent attempts from server
+      let serverAttempts = [];
+      try {
+        const res = await fetch(`${API_BASE}/api/history/${currentFile}`);
+        if (res.ok) serverAttempts = await res.json();
+      } catch (_) {}
+
+      // Merge: local attempts (have audioUrl) + server-only ones (no audioUrl)
+      const localIds = new Set(localAttempts.map(a => a.serverId).filter(Boolean));
+      const serverOnly = serverAttempts.filter(a => !localIds.has(a.id));
+
+      // Build unified list sorted newest first
+      const combined = [
+        ...localAttempts.map(a => ({
+          ts: a.timestamp,
+          overall: a.overall,
+          mode: a.mode,
+          source: "local",
+          localIdx: localAttempts.indexOf(a),
+          filename: currentFile,
+        })),
+        ...serverOnly.map(a => ({
+          ts: new Date(a.timestamp + "Z").getTime(),
+          overall: a.overall_score,
+          mode: a.mode,
+          source: "server",
+        })),
+      ].sort((a, b) => b.ts - a.ts);
+
+      if (combined.length === 0) {
         histDiv.textContent = "No attempts yet for this sentence.";
         return;
       }
 
       histDiv.innerHTML =
         `<div style="font-size:0.8rem; color:#6b7280; margin-bottom:2px;">
-          Attempts for: <strong>${currentFile}</strong>
+          History for: <strong>${currentFile}</strong>
         </div>
         <ul>` +
-        attempts.map((e, idx) =>
-          `<li style="cursor:pointer;"
-              onclick="loadPastAttempt('${currentFile}', ${idx})">
-            ${new Date(e.timestamp).toLocaleTimeString()} – 
-            score: ${e.overall.toFixed(1)} 
+        combined.map(e => {
+          const time = new Date(e.ts).toLocaleTimeString();
+          const clickAttr = e.source === "local"
+            ? `onclick="loadPastAttempt('${e.filename}', ${e.localIdx})"`
+            : "";
+          const cursor = e.source === "local" ? "cursor:pointer;" : "";
+          return `<li style="${cursor}" ${clickAttr}>
+            ${time} – score: ${e.overall.toFixed(1)}
             <span style="color:#6b7280;">(${e.mode})</span>
-          </li>`
-        ).join("") +
+          </li>`;
+        }).join("") +
         `</ul>`;
     };
 
@@ -608,14 +675,25 @@
       const N = Math.min(timeSeries.length, dtwPitch.length);
       if (N === 0) return;
 
-      const yLearner = normalizePitchToSemitones(dtwPitch.slice(0, N));
+      // Normalize learner using the native median so both curves share one reference
+      const nativeVoiced = pitchSeries.filter(v => v && v > 0);
+      let yLearner;
+      if (nativeVoiced.length > 0) {
+        const sorted = [...nativeVoiced].sort((a, b) => a - b);
+        const nativeMedian = sorted[Math.floor(sorted.length / 2)];
+        yLearner = dtwPitch.slice(0, N).map(v =>
+          (v && v > 0) ? 12 * Math.log2(v / nativeMedian) : null
+        );
+      } else {
+        yLearner = normalizePitchToSemitones(dtwPitch.slice(0, N));
+      }
 
       const learnerTrace = {
         x: timeSeries.slice(0, N),
         y: yLearner,
         mode: "lines",
         type: "scatter",
-        line: { shape: "spline" },
+        line: { shape: "spline", color: "#f97316", dash: "dot" },
         name: "Learner (DTW-aligned)",
       };
 

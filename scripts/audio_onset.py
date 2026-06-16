@@ -3,10 +3,13 @@ import numpy as np
 from typing import Tuple
 
 
+MAX_TRIM_S = 1.0  # never trim more than this many seconds of leading silence
+
+
 def detect_onset_time(
     wav_path: str,
     intensity_floor_db: float = -50.0,
-    rel_threshold_db: float = 25.0,
+    rel_threshold_db: float = 35.0,
     min_speech_ms: float = 40.0,
 ) -> float:
     """
@@ -42,14 +45,14 @@ def detect_onset_time(
         elif not is_above and run_start_idx is not None:
             duration = times[i - 1] - times[run_start_idx]
             if duration >= min_speech_s:
-                return float(times[run_start_idx])
+                return min(float(times[run_start_idx]), MAX_TRIM_S)
             run_start_idx = None
 
     # Handle possible run to the end
     if run_start_idx is not None:
         duration = times[-1] - times[run_start_idx]
         if duration >= min_speech_s:
-            return float(times[run_start_idx])
+            return min(float(times[run_start_idx]), MAX_TRIM_S)
 
     return 0.0
 
