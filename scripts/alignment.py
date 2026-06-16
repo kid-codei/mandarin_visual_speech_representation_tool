@@ -19,7 +19,7 @@ def _extract_pitch_series(audio_path: str) -> Tuple[List[float], float]:
     Returns (list_of_Hz_or_0_for_unvoiced, duration_seconds).
     """
     snd = parselmouth.Sound(audio_path)
-    pitch = snd.to_pitch()
+    pitch = snd.to_pitch(time_step=0.01, pitch_floor=75, pitch_ceiling=500)
     freqs = pitch.selected_array["frequency"]
     series = [float(f) if f > 0 else 0.0 for f in freqs]
     return series, snd.get_total_duration()
@@ -238,8 +238,14 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
     # map [-1,1] -> [0,100]
     shape_score = 50 * (cos_sim + 1)
 
-    # 3. Magnitude deviation (how far off in Hz)
-    mag_diff = float(np.mean(np.abs(native - learner)))
+    # 3. Magnitude deviation in semitones (speaker-normalized)
+    shared_median = float(np.median(np.concatenate([native, learner])))
+    if shared_median > 0:
+        native_semi = 12 * np.log2(native / shared_median)
+        learner_semi = 12 * np.log2(learner / shared_median)
+        mag_diff = float(np.mean(np.abs(native_semi - learner_semi)))
+    else:
+        mag_diff = 0.0
 
     if mode == "lenient":
         penalty_per_semi = 5.0
@@ -278,15 +284,13 @@ def _segment_score(native_curve, learner_curve, mode="normal"):
 
     base_score = max(0.0, min(100.0, base_score))
 
-    # map direction for UI arrows
-    if learner_dir == "up":
-        pitch_direction = "up"
-    elif learner_dir == "down":
-        pitch_direction = "down"
-    elif learner_dir == "level":
+    # UI arrow = advice: what direction should the learner move toward?
+    # If native is level or learner matched, show ✓ (ok).
+    # Otherwise show the native direction so the user knows where to aim.
+    if native_dir == "level" or native_dir == learner_dir:
         pitch_direction = "ok"
     else:
-        pitch_direction = "unknown"
+        pitch_direction = native_dir  # "up" = raise pitch, "down" = lower pitch
 
     return base_score, pitch_direction
 

@@ -110,7 +110,6 @@ def get_audio(filename: str):
 # Learner recordings
 # ---------------------------
 @app.route("/upload", methods=["POST"])
-@app.route("/upload", methods=["POST"])
 def upload_audio():
     """Accept a learner recording uploaded from the browser.
 
