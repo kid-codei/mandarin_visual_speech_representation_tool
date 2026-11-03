@@ -2,90 +2,287 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Mandarin Visual Speech Representation Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MVSRT — Mandarin Visual Speech Representation Tool</title>
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f4ff;
+      --card: #ffffff;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --accent-soft: #dbeafe;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: rgba(148,163,184,0.25);
+      --shadow: 0 16px 48px rgba(15,23,42,0.12);
+      --radius: 20px;
+    }
+
     body {
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at top left, #e0f2fe, #f5f5f8 45%);
-      color: #111827;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #dbeafe 0%, #f0f4ff 50%, #ede9fe 100%);
+      color: var(--text);
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+      padding: 24px;
     }
 
-    .container {
-      max-width: 600px;
-      background: rgba(255,255,255,0.9);
-      padding: 32px;
-      border-radius: 20px;
-      box-shadow: 0 10px 25px rgba(15,23,42,0.1);
-      backdrop-filter: blur(12px);
-      text-align: center;
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      max-width: 680px;
+      width: 100%;
+      overflow: hidden;
     }
 
-    h1 {
-      margin-top: 0;
-      font-size: 2.2rem;
-      letter-spacing: .5px;
+    .card-header {
+      background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+      padding: 40px 40px 36px;
+      color: white;
     }
 
-    p {
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.35);
+      color: white;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+      font-weight: 500;
+    }
+
+    .card-header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .card-header .subtitle {
       font-size: 1rem;
-      color: #4b5563;
+      opacity: 0.85;
       line-height: 1.5;
-      margin-bottom: 18px;
+    }
+
+    .card-body {
+      padding: 36px 40px 40px;
+    }
+
+    .card-body p {
+      font-size: 0.97rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .feature-list {
+      list-style: none;
+      margin: 20px 0 28px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.92rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .feature-icon {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .feature-icon svg {
+      width: 13px;
+      height: 13px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .cta-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    a.btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-size: 0.97rem;
+      font-weight: 600;
+      box-shadow: 0 6px 20px rgba(37,99,235,0.30);
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+
+    a.btn-primary:hover {
+      background: var(--accent-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(37,99,235,0.38);
+    }
+
+    a.btn-primary svg {
+      width: 16px;
+      height: 16px;
+      stroke: white;
+      fill: none;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 28px 0 24px;
     }
 
     .contact {
-      margin-top: 20px;
-      font-size: .9rem;
-      color: #374151;
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.8;
     }
 
-    a.button {
-      display: inline-block;
-      margin-top: 24px;
-      background: #2563eb;
-      color: white;
-      padding: 12px 22px;
-      border-radius: 999px;
+    .contact strong {
+      color: var(--text);
+    }
+
+    .contact a {
+      color: var(--accent);
       text-decoration: none;
-      font-size: 1rem;
-      box-shadow: 0 8px 20px rgba(37,99,235,0.25);
-      transition: background .15s;
-    }
-    a.button:hover {
-      background: #1d4ed8;
+      font-weight: 500;
     }
 
+    .contact a:hover {
+      text-decoration: underline;
+    }
+
+    .tech-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .pill {
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: #f8fafc;
+    }
+
+    @media (max-width: 500px) {
+      .card-header, .card-body { padding-left: 24px; padding-right: 24px; }
+      .card-header h1 { font-size: 1.6rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Welcome 👋</h1>
-    <p>
-      Hi! My name is <strong>John Henry Cruz</strong> and this project is the
-      <strong>Mandarin Visual Speech Representation Tool (MVSRT)</strong>.
-    </p>
-    <p>
-      This tool helps Mandarin learners visualize and compare their pitch contour 
-      against native speakers — providing character-level, real-time feedback 
-      to support clearer, more natural pronunciation.
-    </p>
-    <p>
-      Whether you're practicing tones, preparing for exams, or simply improving your Mandarin,
-      I hope this tool makes your learning journey easier, more intuitive, and more fun.
-    </p>
+  <div class="card">
+    <div class="card-header">
+      <div class="badge">Research Tool · Linguistics</div>
+      <h1>Mandarin Visual Speech Representation Tool</h1>
+      <p class="subtitle">Real-time pitch contour comparison for Mandarin tone learning.</p>
+    </div>
 
-    <a href="tool.html" class="button">Enter the Tool →</a>
+    <div class="card-body">
+      <p>
+        MVSRT helps Mandarin learners visualize and compare their pitch contour against
+        native speaker recordings — providing character-level, real-time feedback to
+        support clearer, more natural pronunciation of tonal distinctions.
+      </p>
 
-    <div class="contact">
-      Questions, collaboration, or feedback?<br>
-      📧 <strong>johnhenrycruz000@gmail.com</strong><br>
-      LinkedIn: <a href="https://www.linkedin.com/in/johnhenrycruz/" target="_blank">Click Here!</a>
+      <ul class="feature-list">
+        <li>
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </span>
+          Interactive pitch contour plots with native vs. learner overlay
+        </li>
+        <li>
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+          Character-level tone scoring with coaching hints (Normal, Lenient, Strict)
+        </li>
+        <li>
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </span>
+          MFA (Montreal Forced Aligner) integration for accurate segment alignment
+        </li>
+        <li>
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </span>
+          Traditional, Simplified, and Pinyin display modes
+        </li>
+        <li>
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </span>
+          DTW-based learner pitch alignment and persistent attempt history
+        </li>
+      </ul>
+
+      <div class="cta-row">
+        <a href="/tool" class="btn-primary">
+          Open the Tool
+          <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="contact">
+        <strong>John Henry Cruz</strong><br>
+        jhec.819@gmail.com &nbsp;&middot;&nbsp;
+        <a href="https://www.linkedin.com/in/johnhenrycruz/" target="_blank" rel="noopener">LinkedIn</a>
+        <br>Questions, collaboration, or feedback are welcome.
+      </div>
+
+      <div class="tech-pills">
+        <span class="pill">Flask</span>
+        <span class="pill">Parselmouth</span>
+        <span class="pill">librosa</span>
+        <span class="pill">Plotly</span>
+        <span class="pill">MFA</span>
+        <span class="pill">DTW</span>
+        <span class="pill">Python 3</span>
+      </div>
     </div>
   </div>
 </body>
