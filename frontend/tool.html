@@ -662,7 +662,7 @@
     };
 
     const createAlignedTextHTML = (chars, pinyin) => {
-      const charList = chars.split("");
+      const charList = chars.split("").filter(ch => /[一-鿿㐀-䶿]/.test(ch));
       const pinyinList = pinyin.split(" ");
       return "<div style='display: flex; gap: 12px; flex-wrap: wrap;'>" +
         charList.map((ch, i) =>
@@ -989,8 +989,9 @@
 
       const displayMode = document.getElementById("scriptChoice").value;
 
-      const tradChars = traditional ? traditional.split("") : [];
-      const simpChars = simplified ? simplified.split("") : [];
+      const isCJK = ch => /[一-鿿㐀-䶿]/.test(ch);
+      const tradChars = traditional ? traditional.split("").filter(isCJK) : [];
+      const simpChars = simplified ? simplified.split("").filter(isCJK) : [];
       const pinyinList = pinyin ? pinyin.split(" ") : [];
 
       // store globally for feedback rendering
