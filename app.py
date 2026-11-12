@@ -90,6 +90,38 @@ def get_pitch_data(filename: str):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/sentences")
+def get_all_sentences():
+    """Return metadata for every available sentence (those with aligned pitch JSON)."""
+    pitch_dir = os.path.join("static", "json", "aligned_pitch")
+    ids = sorted(set(
+        f.split("_aligned_pitch.json")[0]
+        for f in os.listdir(pitch_dir)
+        if f.endswith("_aligned_pitch.json")
+    ))
+
+    try:
+        with open(os.path.join("static", "json", "sentences.json"), encoding="utf-8") as f:
+            sentences = json.load(f)
+    except FileNotFoundError:
+        sentences = []
+
+    index = {s["audio_filename"].split(".")[0]: s for s in sentences}
+
+    result = []
+    for sid in ids:
+        meta = index.get(sid, {})
+        result.append({
+            "id": sid,
+            "chinese_traditional": meta.get("chinese_traditional", ""),
+            "chinese_simplified": meta.get("chinese_simplified", ""),
+            "pinyin": meta.get("pinyin", ""),
+            "english": meta.get("english", ""),
+            "audio_filename": meta.get("audio_filename", f"{sid}.wav"),
+        })
+    return jsonify(result)
+
+
 @app.route("/audio/<filename>")
 def get_audio(filename: str):
     return send_from_directory("static/audio", filename)
