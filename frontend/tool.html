@@ -984,8 +984,8 @@
       const yMax = validNative.length ? Math.max(...validNative) : 5;
 
       // Ensure the x-axis spans exactly the sentence duration
-      const xMin = timeSeries.length ? timeSeries[0] : 0;
-      const xMax = timeSeries.length ? timeSeries[timeSeries.length - 1] : 1;
+      const xMin = timeSeries.length ? Math.max(0, timeSeries[0] - 0.1) : 0;
+      const xMax = timeSeries.length ? timeSeries[timeSeries.length - 1] + 0.3 : 1;
 
       const displayMode = document.getElementById("scriptChoice").value;
 
@@ -1127,8 +1127,9 @@
       audio.play();
       audio.style.display = "block";
 
+      const alignmentOffset = timeSeries.length ? timeSeries[0] : 0;
       const updateDot = () => {
-        const t = audio.currentTime;
+        const t = audio.currentTime + alignmentOffset;
         const i = timeSeries.findIndex(x => x >= t);
         if (i >= 0 && nativeSemitonesGlobal && nativeSemitonesGlobal.length > i) {
           Plotly.restyle(
